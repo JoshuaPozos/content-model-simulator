@@ -13,7 +13,7 @@
   },
   "scripts": {
     "start": "node bin/cms-sim.js",
-    "test": "node --test src/**/*.test.js"
+    "test": "node --test 'src/**/*.test.js'"
   },
   "keywords": [
     "contentful",

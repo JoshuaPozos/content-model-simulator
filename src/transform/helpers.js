@@ -92,7 +92,7 @@ export function createLink(linkType, id) {
  * @returns {boolean}
  */
 export function isLink(val, linkType) {
-  if (!val?.sys?.type === 'Link') return false;
+  if (val?.sys?.type !== 'Link') return false;
   if (linkType) return val.sys.linkType === linkType;
   return true;
 }
