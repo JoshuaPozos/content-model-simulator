@@ -1,5 +1,11 @@
 # content-model-simulator
 
+![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+![Tests](https://img.shields.io/badge/tests-188%20passing-brightgreen)
+
 Preview your Contentful content model locally — **zero dependencies, simulation runs 100% offline**.
 
 Simulate how your content types, entries, and assets **will look** in Contentful before you commit to an actual migration. The simulation runs **entirely offline** — it never uploads data and never modifies your Contentful space. You get an interactive local preview so you can validate your content model, catch errors early, and iterate with confidence.

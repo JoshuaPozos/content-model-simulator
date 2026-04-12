@@ -21,11 +21,22 @@ import { extractNestedObjects } from '../extract/nested-objects.js';
 import { validateEntry } from './validator.js';
 import { generateEntryId, extractSelectKey } from '../transform/helpers.js';
 import type {
-  SimulateConfig, SimulationReport, ReportIssue, Entry, EntryFields,
-  ContentTypeDefinition, Document, SchemaLike, TransformerLike, TransformedEntry,
+  SimulateConfig, SimulationReport, SimulateOptions, ReportIssue, Entry, EntryFields,
+  ContentTypeDefinition, Document, SchemaLike, SchemaInput, TransformerLike, TransformedEntry,
 } from '../types.js';
 
-export function simulate(config: SimulateConfig): SimulationReport {
+export function simulate(config: SimulateConfig): SimulationReport;
+export function simulate(documents: Document[], schemas: SchemaInput, options?: SimulateOptions): SimulationReport;
+export function simulate(
+  configOrDocs: SimulateConfig | Document[],
+  schemasArg?: SchemaInput,
+  optionsArg?: SimulateOptions,
+): SimulationReport {
+  // Normalize: positional → config object
+  const config: SimulateConfig = Array.isArray(configOrDocs)
+    ? { documents: configOrDocs, schemas: schemasArg!, options: optionsArg }
+    : configOrDocs;
+
   const {
     documents,
     schemas,
@@ -132,6 +143,19 @@ export function simulate(config: SimulateConfig): SimulationReport {
           localized: f.localized || false,
         })),
       };
+
+      // Detect duplicate field IDs
+      const seen = new Set<string>();
+      for (const f of def.fields || []) {
+        if (seen.has(f.id)) {
+          report.warnings.push({
+            type: 'DUPLICATE_FIELD',
+            contentType: ctId,
+            message: `Duplicate field "${f.id}" in content type "${ctId}"`,
+          });
+        }
+        seen.add(f.id);
+      }
     }
   }
 

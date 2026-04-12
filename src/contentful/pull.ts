@@ -132,6 +132,7 @@ export async function pull(options: PullOptions): Promise<PullResult> {
     outputDir,
     includeEntries = false,
     maxEntries = 1000,
+    contentType,
     useCMA = false,
     verbose = false,
   } = options;
@@ -160,8 +161,11 @@ export async function pull(options: PullOptions): Promise<PullResult> {
   let documents: Document[] | null = null;
   if (includeEntries) {
     if (verbose) console.log('\nFetching entries...');
+    const entryQuery = contentType
+      ? `${envUrl}/entries?locale=*&content_type=${encodeURIComponent(contentType)}`
+      : `${envUrl}/entries?locale=*`;
     const entriesRaw = await fetchAll(
-      `${envUrl}/entries?locale=*`,
+      entryQuery,
       headers,
       {
         verbose,

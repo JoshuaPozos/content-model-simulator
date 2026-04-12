@@ -149,6 +149,7 @@ ${c.cyan}OPTIONS:${c.reset}
   --output=<dir>        Output directory (default: ./contentful-export)
   --include-entries     Also download published entries
   --max-entries=<n>     Max entries to download (default: 1000)
+  --content-type=<id>   Only fetch entries of this content type
   --verbose, -v         Verbose logging
   --help, -h            Show this help
 
@@ -392,6 +393,7 @@ async function pullMain(argv) {
     output: './contentful-export',
     includeEntries: false,
     maxEntries: 1000,
+    contentType: null,
     verbose: false,
     help: false,
   };
@@ -412,6 +414,7 @@ async function pullMain(argv) {
       case 'environment': args.environment = val; break;
       case 'output': args.output = val; break;
       case 'max-entries': args.maxEntries = parseInt(val, 10) || 1000; break;
+      case 'content-type': args.contentType = val; break;
     }
   }
 
@@ -419,6 +422,10 @@ async function pullMain(argv) {
 
   if (args.maxEntries !== 1000 && !args.includeEntries) {
     console.log(`${c.yellow}⚠ --max-entries has no effect without --include-entries${c.reset}\n`);
+  }
+
+  if (args.contentType && !args.includeEntries) {
+    console.log(`${c.yellow}⚠ --content-type has no effect without --include-entries${c.reset}\n`);
   }
 
   const outputDir = resolve(args.output);
@@ -437,6 +444,7 @@ async function pullMain(argv) {
     outputDir,
     includeEntries: args.includeEntries,
     maxEntries: args.maxEntries,
+    contentType: args.contentType || undefined,
     verbose: args.verbose,
   });
 

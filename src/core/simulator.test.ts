@@ -239,4 +239,38 @@ describe('simulate', () => {
 
     assert.equal(report.page, 'my-project');
   });
+
+  it('accepts positional arguments (documents, schemas)', () => {
+    const report = simulate([makeDoc()], { blogPost: blogPostDef });
+
+    assert.equal(report.entries.length, 1);
+    assert.equal(Object.keys(report.contentTypes).length, 1);
+  });
+
+  it('accepts positional arguments with options', () => {
+    const report = simulate([makeDoc()], { blogPost: blogPostDef }, { name: 'positional-test' });
+
+    assert.equal(report.page, 'positional-test');
+    assert.equal(report.entries.length, 1);
+  });
+
+  it('detects duplicate fields in schemas', () => {
+    const dupeSchema = {
+      id: 'blogPost',
+      name: 'Blog Post',
+      fields: [
+        { id: 'title', name: 'Title', type: 'Symbol' as const },
+        { id: 'body', name: 'Body', type: 'Text' as const },
+        { id: 'title', name: 'Title Copy', type: 'Symbol' as const },
+      ],
+    };
+    const report = simulate({
+      documents: [makeDoc()],
+      schemas: { blogPost: dupeSchema },
+    });
+
+    const dupeWarnings = report.warnings.filter(w => w.type === 'DUPLICATE_FIELD');
+    assert.equal(dupeWarnings.length, 1);
+    assert.ok(dupeWarnings[0].message.includes('title'));
+  });
 });

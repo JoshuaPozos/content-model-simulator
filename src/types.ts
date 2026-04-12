@@ -225,6 +225,7 @@ export interface PullOptions {
   outputDir?: string;
   includeEntries?: boolean;
   maxEntries?: number;
+  contentType?: string;
   useCMA?: boolean;
   verbose?: boolean;
 }
