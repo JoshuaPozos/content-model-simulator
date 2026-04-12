@@ -1,12 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractAssets, linkAssets } from '../../dist/extract/assets.js';
+import { extractAssets, linkAssets } from './assets.js';
+import type { Document } from '../types.js';
 
 describe('extractAssets', () => {
   it('extracts assets from documents with image objects', () => {
-    const docs = [
+    const docs: Document[] = [
       {
         id: 'doc1',
+        contentType: 'blogPost',
         path: '/blog/hello',
         fields: {
           hero: { links: { resource: { href: 'https://images.example.com/hero.jpg' } } },
@@ -25,9 +27,9 @@ describe('extractAssets', () => {
 
   it('deduplicates assets by URL', () => {
     const url = 'https://images.example.com/shared.jpg';
-    const docs = [
-      { id: '1', path: '/a', fields: { img: { links: { resource: { href: url } } } } },
-      { id: '2', path: '/b', fields: { img: { links: { resource: { href: url } } } } },
+    const docs: Document[] = [
+      { id: '1', contentType: 'page', path: '/a', fields: { img: { links: { resource: { href: url } } } } },
+      { id: '2', contentType: 'page', path: '/b', fields: { img: { links: { resource: { href: url } } } } },
     ];
     const { assets } = extractAssets(docs);
     assert.equal(assets.length, 1);
@@ -35,17 +37,18 @@ describe('extractAssets', () => {
   });
 
   it('ignores non-HTTP URLs', () => {
-    const docs = [
-      { id: '1', fields: { img: { links: { resource: { href: 'data:image/png;base64,xxx' } } } } },
+    const docs: Document[] = [
+      { id: '1', contentType: 'page', fields: { img: { links: { resource: { href: 'data:image/png;base64,xxx' } } } } },
     ];
     const { assets } = extractAssets(docs);
     assert.equal(assets.length, 0);
   });
 
   it('walks nested arrays', () => {
-    const docs = [
+    const docs: Document[] = [
       {
         id: '1',
+        contentType: 'gallery',
         path: '/x',
         fields: {
           gallery: [
@@ -60,34 +63,38 @@ describe('extractAssets', () => {
   });
 
   it('returns empty for documents with no assets', () => {
-    const docs = [{ id: '1', fields: { title: 'Hello', count: 42 } }];
+    const docs: Document[] = [{ id: '1', contentType: 'article', fields: { title: 'Hello', count: 42 } }];
     const { assets, urlToAssetId } = extractAssets(docs);
     assert.equal(assets.length, 0);
     assert.equal(urlToAssetId.size, 0);
   });
 
   it('handles null/undefined field values', () => {
-    const docs = [{ id: '1', fields: { x: null, y: undefined } }];
+    const docs: Document[] = [{ id: '1', contentType: 'test', fields: { x: null, y: undefined } }];
     const { assets } = extractAssets(docs);
     assert.equal(assets.length, 0);
   });
 
   it('supports custom isAsset detector', () => {
-    const docs = [
-      { id: '1', fields: { media: { type: 'image', src: 'https://cdn.example.com/pic.jpg' } } },
+    const docs: Document[] = [
+      { id: '1', contentType: 'media', fields: { media: { type: 'image', src: 'https://cdn.example.com/pic.jpg' } } },
     ];
     const { assets } = extractAssets(docs, {
-      isAsset: (obj) => obj?.type === 'image' && obj?.src,
-      getAssetUrl: (obj) => obj.src,
+      isAsset: (obj): boolean => {
+        const o = obj as Record<string, unknown>;
+        return o?.type === 'image' && typeof o?.src === 'string';
+      },
+      getAssetUrl: (obj): string | null => (obj as Record<string, string>).src,
     });
     assert.equal(assets.length, 1);
     assert.equal(assets[0].url, 'https://cdn.example.com/pic.jpg');
   });
 
   it('uses doc.id as fallback for doc.path', () => {
-    const docs = [
+    const docs: Document[] = [
       {
         id: 'fallback-id',
+        contentType: 'page',
         fields: { img: { links: { resource: { href: 'https://img.example.com/x.jpg' } } } },
       },
     ];

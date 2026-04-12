@@ -11,7 +11,7 @@
  */
 
 import { generateEntryId, extractSelectKey, simpleHash } from '../transform/helpers.js';
-import type { ContentTypeDefinition, Entry, EntryFields, ExtractNestedOptions, ExtractNestedResult, SchemaLike } from '../types.js';
+import type { ContentTypeDefinition, Entry, EntryFields, ExtractNestedOptions, ExtractNestedResult, SchemaLike, SchemaInput } from '../types.js';
 
 export function extractNestedObjects(
   fields: EntryFields,

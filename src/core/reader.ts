@@ -95,7 +95,12 @@ export function filterByLocale(documents: Document[], locale: string): Document[
 }
 
 export function filterByPath(documents: Document[], pattern: string): Document[] {
-  const regex = new RegExp(pattern);
+  let regex: RegExp;
+  try {
+    regex = new RegExp(pattern);
+  } catch {
+    throw new Error(`Invalid filter pattern: ${pattern}`);
+  }
   return documents.filter(d => d.path && regex.test(d.path));
 }
 

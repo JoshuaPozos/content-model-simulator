@@ -7,7 +7,7 @@
  */
 
 import { generateEntryId } from '../transform/helpers.js';
-import type { ContentTypeDefinition, ContentTypeField, Document, Asset, MockDataOptions, MockDataResult, SchemaLike } from '../types.js';
+import type { ContentTypeDefinition, ContentTypeField, Document, Asset, MockDataOptions, MockDataResult, SchemaLike, SchemaInput } from '../types.js';
 
 /**
  * Field-type generators. Each returns a plausible sample value.
@@ -191,7 +191,7 @@ function findLinkTargetCTs(fieldDef: ContentTypeField, allSchemas: Record<string
 }
 
 export function generateMockData(
-  schemas: SchemaLike | Record<string, ContentTypeDefinition>,
+  schemas: SchemaInput,
   options: MockDataOptions = {},
 ): MockDataResult {
   const {

@@ -10,7 +10,7 @@ import {
   filterByLocale,
   filterByPath,
   getDocumentStats,
-} from '../../dist/core/reader.js';
+} from './reader.js';
 
 function createTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'cms-sim-reader-'));
@@ -95,9 +95,12 @@ describe('readDocuments (async)', () => {
     fs.writeFileSync(filePath, JSON.stringify(sampleDocs[0]) + '\n');
 
     const docs = await readDocuments(filePath, {
-      transform: doc => ({ ...doc, transformed: true }),
+      transform: (doc) => {
+        const raw = doc as Record<string, unknown>;
+        return { contentType: String(raw.contentType ?? ''), ...raw, transformed: true };
+      },
     });
-    assert.ok(docs[0].transformed);
+    assert.ok((docs[0] as unknown as Record<string, unknown>).transformed);
   });
 
   it('throws on non-array JSON', async () => {
@@ -216,7 +219,7 @@ describe('getDocumentStats', () => {
   });
 
   it('handles documents without contentType or locale', () => {
-    const docs = [{ id: '1', fields: {} }];
+    const docs = [{ id: '1', contentType: '', fields: {} }];
     const stats = getDocumentStats(docs);
     assert.equal(stats.totalDocuments, 1);
     assert.equal(stats.contentTypeCount, 0);

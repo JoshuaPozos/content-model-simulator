@@ -1,8 +1,27 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateMockData } from '../../dist/core/mock-generator.js';
+import { generateMockData } from './mock-generator.js';
+import type { ContentTypeDefinition } from '../types.js';
 
-const blogPostDef = {
+/** Expected shape of mock-generated blog post data */
+interface MockBlogPostData {
+  title: string;
+  slug: string;
+  body: { nodeType: string; content: unknown[] };
+  publishDate: string;
+  featured: boolean;
+  views: number;
+  rating: number;
+  metadata: Record<string, unknown>;
+  location: { lat: number; lon: number };
+  image: { sys: { linkType: string } };
+  author: { sys: { linkType: string; id: string } };
+  tags: string[];
+  relatedPosts: Array<{ sys: { linkType: string } }>;
+  category: string;
+}
+
+const blogPostDef: ContentTypeDefinition = {
   id: 'blogPost',
   name: 'Blog Post',
   displayField: 'title',
@@ -27,7 +46,7 @@ const blogPostDef = {
   ],
 };
 
-const authorDef = {
+const authorDef: ContentTypeDefinition = {
   id: 'author',
   name: 'Author',
   fields: [
@@ -73,7 +92,7 @@ describe('generateMockData', () => {
       { entriesPerType: 1 }
     );
     const doc = documents[0];
-    const data = doc.data;
+    const data = doc.data as unknown as MockBlogPostData;
 
     // Symbol
     assert.equal(typeof data.title, 'string');
@@ -145,23 +164,23 @@ describe('generateMockData', () => {
     const { documents } = generateMockData(schemas, { entriesPerType: 2 });
 
     // Author link in blogPost should reference a real mock author ID
-    const blogDoc = documents.find(d => d.contentType === 'blogPost');
-    const authorLink = blogDoc.data.author;
+    const blogDoc = documents.find(d => d.contentType === 'blogPost')!;
+    const authorLink = blogDoc.data as unknown as MockBlogPostData;
     const authorIds = documents.filter(d => d.contentType === 'author').map(d => d.id);
-    assert.ok(authorIds.includes(authorLink.sys.id),
-      `Author link ${authorLink.sys.id} should be in ${authorIds}`);
+    assert.ok(authorIds.includes(authorLink.author.sys.id),
+      `Author link ${authorLink.author.sys.id} should be in ${authorIds}`);
   });
 
   it('works with SchemaRegistry-like objects', () => {
     const schemas = {
-      getAll() { return { blogPost: blogPostDef }; }
+      getAll(): Record<string, ContentTypeDefinition> { return { blogPost: blogPostDef }; }
     };
     const { documents } = generateMockData(schemas, { entriesPerType: 1 });
     assert.equal(documents.length, 1);
   });
 
   it('handles CT with no fields', () => {
-    const emptyDef = { id: 'empty', name: 'Empty', fields: [] };
+    const emptyDef: ContentTypeDefinition = { id: 'empty', name: 'Empty', fields: [] };
     const { documents } = generateMockData({ empty: emptyDef }, { entriesPerType: 1 });
     assert.equal(documents.length, 1);
     assert.deepEqual(documents[0].data, {});

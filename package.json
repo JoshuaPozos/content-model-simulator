@@ -16,10 +16,10 @@
     "cms-sim": "./bin/cms-sim.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.test.json",
     "start": "node bin/cms-sim.js",
     "pretest": "npm run build",
-    "test": "node --test 'src/**/*.test.js' 'test/*.test.js'"
+    "test": "node --test 'dist/**/*.test.js' 'test/*.test.js'"
   },
   "keywords": [
     "contentful",

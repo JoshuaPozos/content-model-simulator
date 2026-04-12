@@ -29,6 +29,7 @@ export type {
   SimulateOptions,
   FieldGroupConfig,
   SchemaLike,
+  SchemaInput,
   TransformerLike,
   PullOptions,
   PullResult,

@@ -1,9 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { simulate } from '../../dist/core/simulator.js';
-import { SchemaRegistry } from '../../dist/core/schema-registry.js';
+import { simulate } from './simulator.js';
+import { SchemaRegistry } from './schema-registry.js';
+import type { ContentTypeDefinition } from '../types.js';
 
-const blogPostDef = {
+const blogPostDef: ContentTypeDefinition = {
   id: 'blogPost',
   name: 'Blog Post',
   displayField: 'title',
@@ -14,7 +15,7 @@ const blogPostDef = {
   ],
 };
 
-const authorDef = {
+const authorDef: ContentTypeDefinition = {
   id: 'author',
   name: 'Author',
   fields: [

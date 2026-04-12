@@ -181,7 +181,7 @@ export interface TransformedEntry {
 
 export interface SimulateConfig {
   documents: Document[];
-  schemas: SchemaLike;
+  schemas: SchemaInput;
   transformers?: TransformerLike;
   options?: SimulateOptions;
 }
@@ -205,8 +205,9 @@ export interface FieldGroupConfig {
 export interface SchemaLike {
   get?: (id: string) => ContentTypeDefinition | null | undefined;
   getAll?: () => Record<string, ContentTypeDefinition>;
-  [key: string]: unknown;
 }
+
+export type SchemaInput = SchemaLike | Record<string, ContentTypeDefinition>;
 
 export interface TransformerLike {
   get: (ct: string) => TransformFunction | null;
@@ -305,7 +306,7 @@ export interface ExtractNestedOptions {
   parentPath?: string;
   urlToAssetId?: Map<string, string>;
   fieldGroupMap?: Record<string, Record<string, FieldGroupConfig>>;
-  schemas?: SchemaLike;
+  schemas?: SchemaInput;
 }
 
 export interface ExtractNestedResult {

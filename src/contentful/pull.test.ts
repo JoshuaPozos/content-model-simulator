@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { pull } from '../../dist/contentful/pull.js';
+import { pull } from './pull.js';
 
 const mockCT = {
   sys: { id: 'blogPost', type: 'ContentType' },
@@ -38,25 +38,22 @@ const mockEntry = {
   },
 };
 
-function mockFetchResponse(data) {
-  return Promise.resolve({
-    ok: true,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(JSON.stringify(data)),
-  });
+function mockFetchResponse(data: unknown): Promise<Response> {
+  return Promise.resolve(
+    new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  );
 }
 
-function mockFetchError(status, body) {
-  return Promise.resolve({
-    ok: false,
-    status,
-    text: () => Promise.resolve(body),
-  });
+function mockFetchError(status: number, body: string): Promise<Response> {
+  return Promise.resolve(new Response(body, { status }));
 }
 
 describe('pull', () => {
-  let originalFetch;
-  let tmpDir;
+  let originalFetch: typeof globalThis.fetch;
+  let tmpDir: string;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -70,6 +67,7 @@ describe('pull', () => {
 
   it('throws on missing spaceId', async () => {
     await assert.rejects(
+      // @ts-expect-error testing missing required field
       () => pull({ accessToken: 'token', outputDir: tmpDir }),
       /Missing --space-id/
     );
@@ -77,15 +75,17 @@ describe('pull', () => {
 
   it('throws on missing accessToken', async () => {
     await assert.rejects(
+      // @ts-expect-error testing missing required field
       () => pull({ spaceId: 'space1', outputDir: tmpDir }),
       /Missing --access-token/
     );
   });
 
   it('fetches content types and locales', async () => {
-    const fetchCalls = [];
-    globalThis.fetch = (url, opts) => {
-      fetchCalls.push(url);
+    const fetchCalls: (string | URL | Request)[] = [];
+    globalThis.fetch = (input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+      fetchCalls.push(input);
+      const url = String(input);
       if (url.includes('/locales')) {
         return mockFetchResponse({ items: [mockLocale], total: 1 });
       }
@@ -109,7 +109,8 @@ describe('pull', () => {
   });
 
   it('converts content types to schema format correctly', async () => {
-    globalThis.fetch = (url) => {
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
       if (url.includes('/locales')) {
         return mockFetchResponse({ items: [mockLocale], total: 1 });
       }
@@ -146,7 +147,8 @@ describe('pull', () => {
   });
 
   it('writes schema files to disk', async () => {
-    globalThis.fetch = (url) => {
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
       if (url.includes('/locales')) {
         return mockFetchResponse({ items: [mockLocale], total: 1 });
       }
@@ -178,7 +180,8 @@ describe('pull', () => {
   });
 
   it('fetches entries when includeEntries=true', async () => {
-    globalThis.fetch = (url) => {
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
       if (url.includes('/locales')) {
         return mockFetchResponse({ items: [mockLocale, mockLocale2], total: 2 });
       }
@@ -220,7 +223,8 @@ describe('pull', () => {
       fields: { title: { 'en-US': `Entry ${i}` } },
     }));
 
-    globalThis.fetch = (url) => {
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
       if (url.includes('/locales')) {
         return mockFetchResponse({ items: [mockLocale], total: 1 });
       }
@@ -245,7 +249,7 @@ describe('pull', () => {
   });
 
   it('throws on API errors', async () => {
-    globalThis.fetch = () => mockFetchError(401, '{"message":"Unauthorized"}');
+    globalThis.fetch = (): Promise<Response> => mockFetchError(401, '{"message":"Unauthorized"}');
 
     await assert.rejects(
       () => pull({
@@ -259,8 +263,9 @@ describe('pull', () => {
 
   it('uses CDA base URL by default', async () => {
     let calledUrl = '';
-    globalThis.fetch = (url) => {
-      calledUrl = url;
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      calledUrl = String(input);
+      const url = calledUrl;
       if (url.includes('/locales')) {
         return mockFetchResponse({ items: [mockLocale], total: 1 });
       }
@@ -280,7 +285,8 @@ describe('pull', () => {
   });
 
   it('skips disk write when outputDir is falsy', async () => {
-    globalThis.fetch = (url) => {
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
       if (url.includes('/locales')) {
         return mockFetchResponse({ items: [mockLocale], total: 1 });
       }
@@ -301,7 +307,8 @@ describe('pull', () => {
   });
 
   it('does not include entries in result when includeEntries=false', async () => {
-    globalThis.fetch = (url) => {
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
       if (url.includes('/locales')) {
         return mockFetchResponse({ items: [mockLocale], total: 1 });
       }

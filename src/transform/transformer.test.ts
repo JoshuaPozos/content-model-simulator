@@ -1,6 +1,12 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { transformGeneric, TransformerRegistry } from '../../dist/transform/transformer.js';
+import { transformGeneric, TransformerRegistry } from './transformer.js';
+import type { EntryFields } from '../types.js';
+
+/** Helper: narrow entry.fields to localized structure returned by transformGeneric */
+function localized(fields: Record<string, unknown>): EntryFields {
+  return fields as EntryFields;
+}
 
 const sampleDoc = {
   id: 'doc1',
@@ -29,21 +35,24 @@ describe('transformGeneric', () => {
 
   it('wraps field values in locale object', () => {
     const entry = transformGeneric(sampleDoc, 'en');
-    assert.equal(entry.fields.title.en, 'Hello World');
-    assert.equal(entry.fields.body.en, '<p>Content here</p>');
-    assert.equal(entry.fields.views.en, 42);
-    assert.equal(entry.fields.active.en, true);
+    const f = localized(entry.fields);
+    assert.equal(f.title.en, 'Hello World');
+    assert.equal(f.body.en, '<p>Content here</p>');
+    assert.equal(f.views.en, 42);
+    assert.equal(f.active.en, true);
   });
 
   it('preserves arrays', () => {
     const entry = transformGeneric(sampleDoc, 'en');
-    assert.deepEqual(entry.fields.tags.en, ['featured', 'news']);
+    const f = localized(entry.fields);
+    assert.deepEqual(f.tags.en, ['featured', 'news']);
   });
 
   it('adds internalName field', () => {
     const entry = transformGeneric(sampleDoc, 'en');
-    assert.ok(entry.fields.internalName);
-    assert.ok(typeof entry.fields.internalName.en === 'string');
+    const f = localized(entry.fields);
+    assert.ok(f.internalName);
+    assert.ok(typeof f.internalName.en === 'string');
   });
 
   it('preserves image objects', () => {
@@ -54,7 +63,8 @@ describe('transformGeneric', () => {
       },
     };
     const entry = transformGeneric(docWithImage, 'en');
-    assert.ok(entry.fields.hero.en.links?.resource?.href);
+    const heroField = localized(entry.fields).hero.en as Record<string, Record<string, Record<string, string>>>;
+    assert.ok(heroField.links?.resource?.href);
   });
 
   it('unwraps HTML value wrappers', () => {
@@ -63,14 +73,16 @@ describe('transformGeneric', () => {
       fields: { summary: { value: '<p>Hello</p>' } },
     };
     const entry = transformGeneric(docWithHtml, 'en');
-    assert.equal(entry.fields.summary.en, '<p>Hello</p>');
+    const f = localized(entry.fields);
+    assert.equal(f.summary.en, '<p>Hello</p>');
   });
 
   it('handles null/undefined field values', () => {
     const doc = { ...sampleDoc, fields: { title: null, body: undefined } };
     const entry = transformGeneric(doc, 'en');
-    assert.equal(entry.fields.title.en, null);
-    assert.equal(entry.fields.body.en, null);
+    const f = localized(entry.fields);
+    assert.equal(f.title.en, null);
+    assert.equal(f.body.en, null);
   });
 
   it('applies locale mapping', () => {
@@ -78,13 +90,14 @@ describe('transformGeneric', () => {
     const entry = transformGeneric(doc, 'en', {
       mapLocale: (l) => l === 'en-GB' ? 'en' : l,
     });
-    assert.ok(entry.fields.title.en);
+    assert.ok(localized(entry.fields).title.en);
   });
 
   it('uses doc.data fallback when doc.fields is missing', () => {
     const doc = { id: 'x', contentType: 'ct', data: { title: 'From Data' } };
     const entry = transformGeneric(doc, 'en');
-    assert.equal(entry.fields.title.en, 'From Data');
+    const f = localized(entry.fields);
+    assert.equal(f.title.en, 'From Data');
   });
 
   it('passes through small key-value objects (selects)', () => {
@@ -93,7 +106,8 @@ describe('transformGeneric', () => {
       fields: { status: { active: 'Active', label: 'Active Status' } },
     };
     const entry = transformGeneric(doc, 'en');
-    assert.deepEqual(entry.fields.status.en, { active: 'Active', label: 'Active Status' });
+    const f = localized(entry.fields);
+    assert.deepEqual(f.status.en, { active: 'Active', label: 'Active Status' });
   });
 });
 

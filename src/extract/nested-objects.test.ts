@@ -1,8 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractNestedObjects } from '../../dist/extract/nested-objects.js';
+import { extractNestedObjects } from './nested-objects.js';
+import type { ContentTypeDefinition, SchemaLike } from '../types.js';
 
-const parentCtDef = {
+const parentCtDef: ContentTypeDefinition = {
   id: 'page',
   name: 'Page',
   fields: [
@@ -12,7 +13,7 @@ const parentCtDef = {
   ],
 };
 
-const slideDef = {
+const slideDef: ContentTypeDefinition = {
   id: 'slide',
   name: 'Slide',
   fields: [
@@ -22,7 +23,7 @@ const slideDef = {
   ],
 };
 
-const heroDef = {
+const heroDef: ContentTypeDefinition = {
   id: 'hero',
   name: 'Hero',
   fields: [
@@ -38,8 +39,8 @@ const fieldGroupMap = {
   },
 };
 
-const schemas = {
-  get(id) {
+const schemas: SchemaLike = {
+  get(id: string) {
     if (id === 'slide') return slideDef;
     if (id === 'hero') return heroDef;
     return null;
@@ -74,10 +75,11 @@ describe('extractNestedObjects', () => {
     assert.equal(result.entries[0].fields.heading.en, 'Slide 1');
     assert.equal(result.entries[1].fields.heading.en, 'Slide 2');
 
-    // Parent field should be replaced with links
-    assert.ok(Array.isArray(fields.slides.en));
-    assert.ok(fields.slides.en[0].sys?.linkType === 'Entry');
-    assert.ok(fields.slides.en[1].sys?.linkType === 'Entry');
+    // Parent field should be replaced with links (mutated by extractNestedObjects)
+    const linkedSlides = fields.slides.en as Array<Record<string, unknown>>;
+    assert.ok(Array.isArray(linkedSlides));
+    assert.ok((linkedSlides[0].sys as Record<string, string>)?.linkType === 'Entry');
+    assert.ok((linkedSlides[1].sys as Record<string, string>)?.linkType === 'Entry');
   });
 
   it('extracts single (non-array) nested object', () => {
@@ -102,8 +104,9 @@ describe('extractNestedObjects', () => {
     assert.equal(result.entries[0].contentType, 'hero');
     assert.equal(result.entries[0].fields.title.en, 'Welcome');
 
-    // Parent field replaced with link
-    assert.ok(fields.hero.en.sys?.linkType === 'Entry');
+    // Parent field replaced with link (mutated by extractNestedObjects)
+    const linkedHero = fields.hero.en as Record<string, unknown>;
+    assert.ok((linkedHero.sys as Record<string, string>)?.linkType === 'Entry');
   });
 
   it('returns empty when no config for parentContentType', () => {
@@ -183,13 +186,13 @@ describe('extractNestedObjects', () => {
     });
 
     assert.equal(result.entries.length, 1);
-    const imageField = result.entries[0].fields.image?.en;
+    const imageField = result.entries[0].fields.image?.en as Record<string, Record<string, string>>;
     assert.equal(imageField.sys.linkType, 'Asset');
     assert.equal(imageField.sys.id, 'asset_slidebg_abc');
   });
 
   it('handles missing CT definition by copying fields as-is', () => {
-    const noDefSchemas = { get() { return null; } };
+    const noDefSchemas: SchemaLike = { get() { return null; } };
     const fields = {
       slides: { en: [{ heading: 'Slide', extra: 'data' }] },
     };

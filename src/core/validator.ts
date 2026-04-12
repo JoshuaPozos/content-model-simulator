@@ -5,7 +5,7 @@
  * Produces errors and warnings without calling any external API.
  */
 
-import type { Entry, ContentTypeDefinition, ReportIssue, SchemaLike } from '../types.js';
+import type { Entry, ContentTypeDefinition, ReportIssue, SchemaLike, SchemaInput } from '../types.js';
 
 export function validateEntry(
   entry: Pick<Entry, 'id' | 'contentType' | 'fields'>,
@@ -94,7 +94,7 @@ export function validateEntry(
 
 export function validateAll(
   entries: Array<Pick<Entry, 'id' | 'contentType' | 'fields'>>,
-  schemas: SchemaLike | Record<string, ContentTypeDefinition>,
+  schemas: SchemaInput,
   baseLocale: string,
 ): { errors: ReportIssue[]; warnings: ReportIssue[] } {
   const allErrors: ReportIssue[] = [];

@@ -1,8 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateEntry, validateAll } from '../../dist/core/validator.js';
+import { validateEntry, validateAll } from './validator.js';
+import type { ContentTypeDefinition } from '../types.js';
 
-const blogPostDef = {
+const blogPostDef: ContentTypeDefinition = {
   id: 'blogPost',
   name: 'Blog Post',
   fields: [
@@ -130,7 +131,7 @@ describe('validateEntry', () => {
   });
 
   it('handles definition with empty fields array', () => {
-    const emptyDef = { id: 'empty', name: 'Empty', fields: [] };
+    const emptyDef: ContentTypeDefinition = { id: 'empty', name: 'Empty', fields: [] };
     const entry = { id: 'e1', contentType: 'empty', fields: { x: { en: 'val' } } };
     const { errors } = validateEntry(entry, emptyDef, 'en');
     assert.equal(errors.length, 0);
@@ -151,7 +152,7 @@ describe('validateAll', () => {
 
   it('works with SchemaRegistry-like objects', () => {
     const schemas = {
-      get(id) { return id === 'blogPost' ? blogPostDef : null; }
+      get(id: string) { return id === 'blogPost' ? blogPostDef : null; }
     };
     const entries = [
       { id: 'e1', contentType: 'blogPost', fields: { title: { en: 'Hello' } } },
