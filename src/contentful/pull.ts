@@ -14,6 +14,7 @@ import type { ContentTypeDefinition, ContentTypeField, Document, PullOptions, Pu
 // ── API helpers ──────────────────────────────────────────────────
 
 const CDA_BASE = 'https://cdn.contentful.com';
+const CPA_BASE = 'https://preview.contentful.com';
 const CMA_BASE = 'https://api.contentful.com';
 
 async function fetchAll(
@@ -134,13 +135,14 @@ export async function pull(options: PullOptions): Promise<PullResult> {
     maxEntries = 1000,
     contentType,
     useCMA = false,
+    usePreview = false,
     verbose = false,
   } = options;
 
   if (!spaceId) throw new Error('Missing --space-id (or CONTENTFUL_SPACE_ID env var)');
   if (!accessToken) throw new Error('Missing --access-token (or CONTENTFUL_ACCESS_TOKEN env var)');
 
-  const base = useCMA ? CMA_BASE : CDA_BASE;
+  const base = useCMA ? CMA_BASE : (usePreview ? CPA_BASE : CDA_BASE);
   const envUrl = `${base}/spaces/${encodeURIComponent(spaceId)}/environments/${encodeURIComponent(environment)}`;
   const headers = { Authorization: `Bearer ${accessToken}` };
 

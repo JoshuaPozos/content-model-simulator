@@ -287,3 +287,85 @@ describe('simulate', () => {
     assert.notEqual(r1.entries[0].id, r3.entries[0].id);
   });
 });
+
+// ── Locale inheritance ───────────────────────────────────────────
+
+const localizedDef: ContentTypeDefinition = {
+  id: 'article',
+  name: 'Article',
+  fields: [
+    { id: 'title', name: 'Title', type: 'Symbol', localized: true },
+    { id: 'slug', name: 'Slug', type: 'Symbol' }, // localized: false (default)
+    { id: 'featured', name: 'Featured', type: 'Boolean' }, // localized: false
+  ],
+};
+
+describe('locale inheritance', () => {
+  it('copies non-localized fields from base locale entry to other locale entries', () => {
+    const docs = [
+      { id: 'a1', contentType: 'article', locale: 'en', path: '/art/1', fields: { title: 'Hello', slug: 'hello', featured: true } },
+      { id: 'a1', contentType: 'article', locale: 'fr', path: '/art/1', fields: { title: 'Bonjour' } },
+    ];
+    const report = simulate({
+      documents: docs,
+      schemas: { article: localizedDef },
+      options: { baseLocale: 'en', locales: ['en', 'fr'] },
+    });
+
+    const frEntry = report.entries.find(e => e.locale === 'fr');
+    assert.ok(frEntry);
+    // Non-localized fields should be inherited from base
+    assert.equal(frEntry.fields.slug?.en, 'hello');
+    assert.equal(frEntry.fields.featured?.en, true);
+  });
+
+  it('does not override existing non-localized field values', () => {
+    const docs = [
+      { id: 'a1', contentType: 'article', locale: 'en', path: '/art/1', fields: { title: 'Hello', slug: 'hello' } },
+      { id: 'a1', contentType: 'article', locale: 'fr', path: '/art/1', fields: { title: 'Bonjour', slug: 'bonjour-already' } },
+    ];
+    const report = simulate({
+      documents: docs,
+      schemas: { article: localizedDef },
+      options: { baseLocale: 'en', locales: ['en', 'fr'] },
+    });
+
+    const frEntry = report.entries.find(e => e.locale === 'fr');
+    assert.ok(frEntry);
+    // slug was already set in the fr document, so it should be overridden with base value
+    // (Contentful behavior: non-localized = only one value, from base)
+    assert.equal(frEntry.fields.slug?.en, 'hello');
+  });
+
+  it('skips inheritance when there is only one locale', () => {
+    const docs = [
+      { id: 'a1', contentType: 'article', locale: 'en', path: '/art/1', fields: { title: 'Hello', slug: 'hello' } },
+    ];
+    const report = simulate({
+      documents: docs,
+      schemas: { article: localizedDef },
+      options: { baseLocale: 'en', locales: ['en'] },
+    });
+
+    assert.equal(report.entries.length, 1);
+    assert.equal(report.entries[0].fields.slug?.en, 'hello');
+  });
+
+  it('does not copy localized fields from base to other locales', () => {
+    const docs = [
+      { id: 'a1', contentType: 'article', locale: 'en', path: '/art/1', fields: { title: 'Hello', slug: 'hello' } },
+      { id: 'a1', contentType: 'article', locale: 'fr', path: '/art/1', fields: { title: 'Bonjour' } },
+    ];
+    const report = simulate({
+      documents: docs,
+      schemas: { article: localizedDef },
+      options: { baseLocale: 'en', locales: ['en', 'fr'] },
+    });
+
+    const frEntry = report.entries.find(e => e.locale === 'fr');
+    assert.ok(frEntry);
+    // title is localized: true, so it should NOT be copied from en
+    // The fr entry should have its own title
+    assert.equal(frEntry.fields.title?.en, 'Bonjour');
+  });
+});

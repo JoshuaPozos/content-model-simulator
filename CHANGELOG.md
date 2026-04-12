@@ -11,7 +11,11 @@ All notable changes to `content-model-simulator` are documented here.
 - **`cms-sim pull`**: download content model + entries from Contentful (read-only CDA)
   - `--content-type=<id>` filter for pulling only specific content types
   - `--max-entries`, `--include-entries`, `--environment` options
+  - `--preview` flag for Content Preview API (drafts instead of published)
   - Pagination progress indicator (`Fetching entries… 300/5200`)
+- **`cms-sim diff`**: compare two schema directories — shows added/removed/changed CTs and fields
+- **Watch mode** (`--watch`, `-w`): re-run simulation automatically on schema or input file changes (debounced, Ctrl+C to stop)
+- **Locale inheritance**: non-localized fields (`localized: false`) are automatically copied from base-locale entry to other-locale entries
 - **Schema Registry**: load from directory, plain objects, or arrays
 - **Streaming NDJSON reader**: `readDocumentsStream()` async generator for files >100MB without loading into memory
 - **Transformer Registry**: custom transforms per content type with skip/rename support
@@ -21,7 +25,7 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry validation**: field-level checks against content type definitions
 - **`writeReport()`**: write simulation report to JSON
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
-- **Test suite**: 188 tests (165 unit + 23 e2e), zero `as any` casts
+- **Test suite**: 209 tests (unit + e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
 - **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property

@@ -352,6 +352,43 @@ export function simulate(
     }
   }
 
+  // ─── Locale inheritance ──────────────────────────────────────────
+  // For fields marked localized: false in the schema, ensure the base locale
+  // value is copied from the base-locale entry to other-locale entries for
+  // the same source.  This mirrors Contentful's behavior where non-localized
+  // fields are shared across all locales.
+  if (report.locales.length > 1) {
+    // Build a map: sourceKey → base-locale entry
+    const baseEntries = new Map<string, Entry>();
+    for (const entry of report.entries) {
+      if (entry.locale === baseLocale) {
+        const key = `${entry.contentType}::${entry.sourceId || entry.sourcePath || entry.id}`;
+        baseEntries.set(key, entry);
+      }
+    }
+
+    for (const entry of report.entries) {
+      if (entry.locale === baseLocale) continue;
+      const key = `${entry.contentType}::${entry.sourceId || entry.sourcePath || entry.id}`;
+      const baseEntry = baseEntries.get(key);
+      if (!baseEntry) continue;
+
+      const ctDef = getSchema(entry.contentType);
+      if (!ctDef) continue;
+
+      for (const fieldDef of ctDef.fields) {
+        if (fieldDef.localized) continue; // only inherit non-localized
+        const baseValue = baseEntry.fields[fieldDef.id]?.[baseLocale];
+        if (baseValue !== undefined) {
+          if (!entry.fields[fieldDef.id]) {
+            entry.fields[fieldDef.id] = {};
+          }
+          entry.fields[fieldDef.id][baseLocale] = baseValue;
+        }
+      }
+    }
+  }
+
   // ─── Stats ──────────────────────────────────────────────────────────
   report.stats = {
     totalEntries: report.entries.length,

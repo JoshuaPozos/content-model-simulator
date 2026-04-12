@@ -326,4 +326,53 @@ describe('pull', () => {
 
     assert.equal(result.documents, null);
   });
+
+  it('uses preview.contentful.com when usePreview is true', async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes('/locales')) {
+        return mockFetchResponse({ items: [mockLocale], total: 1 });
+      }
+      if (url.includes('/content_types')) {
+        return mockFetchResponse({ items: [mockCT], total: 1 });
+      }
+      return mockFetchResponse({ items: [], total: 0 });
+    };
+
+    await pull({
+      spaceId: 'space1',
+      accessToken: 'token123',
+      outputDir: tmpDir,
+      usePreview: true,
+    });
+
+    assert.ok(urls.every(u => u.startsWith('https://preview.contentful.com')),
+      `Expected all URLs to use preview API, got: ${urls[0]}`);
+  });
+
+  it('uses cdn.contentful.com by default', async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes('/locales')) {
+        return mockFetchResponse({ items: [mockLocale], total: 1 });
+      }
+      if (url.includes('/content_types')) {
+        return mockFetchResponse({ items: [mockCT], total: 1 });
+      }
+      return mockFetchResponse({ items: [], total: 0 });
+    };
+
+    await pull({
+      spaceId: 'space1',
+      accessToken: 'token123',
+      outputDir: tmpDir,
+    });
+
+    assert.ok(urls.every(u => u.startsWith('https://cdn.contentful.com')),
+      `Expected all URLs to use CDA, got: ${urls[0]}`);
+  });
 });

@@ -9,7 +9,7 @@
  *   cms-sim --help
  */
 
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, watch as fsWatch, statSync } from 'node:fs';
 import { resolve, join, basename, extname } from 'node:path';
 import { execFile } from 'node:child_process';
 
@@ -44,6 +44,7 @@ function parseArgs(argv) {
     entriesPerType: null,
     format: 'ndjson',
     open: false,
+    watch: false,
     verbose: false,
     json: false,
     help: false,
@@ -53,6 +54,7 @@ function parseArgs(argv) {
     if (arg === '--help' || arg === '-h') { args.help = true; continue; }
     if (arg === '--verbose' || arg === '-v') { args.verbose = true; continue; }
     if (arg === '--open') { args.open = true; continue; }
+    if (arg === '--watch' || arg === '-w') { args.watch = true; continue; }
     if (arg === '--json') { args.json = true; continue; }
 
     const eq = arg.indexOf('=');
@@ -86,6 +88,7 @@ Runs 100% offline. Does not upload or migrate anything.
 ${c.cyan}COMMANDS:${c.reset}
   cms-sim [options]              ${c.dim}Run local simulation (default)${c.reset}
   cms-sim pull [options]         ${c.dim}Download content model from Contentful${c.reset}
+  cms-sim diff --old=A --new=B   ${c.dim}Compare two schema directories${c.reset}
 
 ${c.cyan}SIMULATE — USAGE:${c.reset}
   cms-sim --schemas=<dir> [options]                  ${c.dim}Preview content model${c.reset}
@@ -112,6 +115,7 @@ ${c.cyan}OPTIONS:${c.reset}
   --format=<fmt>        Input format: ndjson, json, dir (default: auto-detect)
   --json                Write JSON output only (skip HTML)
   --open                Auto-open HTML report in browser
+  --watch, -w           Watch schemas/input for changes and re-run automatically
   --verbose, -v         Verbose logging
   --help, -h            Show this help
 
@@ -150,6 +154,7 @@ ${c.cyan}OPTIONS:${c.reset}
   --include-entries     Also download published entries
   --max-entries=<n>     Max entries to download (default: 1000)
   --content-type=<id>   Only fetch entries of this content type
+  --preview             Use Content Preview API (drafts) instead of CDA
   --verbose, -v         Verbose logging
   --help, -h            Show this help
 
@@ -172,22 +177,12 @@ ${c.cyan}EXAMPLES:${c.reset}
   export CONTENTFUL_ACCESS_TOKEN=CDATOKEN
   cms-sim pull --output=my-project/
 
-${c.yellow}Note:${c.reset} Your access token is never stored or logged. Use a CDA (read-only) token.
+${c.yellow}Note:${c.reset} Your access token is never stored or logged. Use a CDA (read-only) or CPA (preview) token.
 `);
 }
 
 // ── Main ─────────────────────────────────────────────────────────
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-
-  if (args.help) { showHelp(); process.exit(0); }
-
-  if (!args.schemas) {
-    console.error(`${c.red}Error: --schemas is required${c.reset}`);
-    showHelp();
-    process.exit(1);
-  }
-
+async function runSimulation(args) {
   const schemasPath = resolve(args.schemas);
   const inputPath = args.input ? resolve(args.input) : null;
   const isMockMode = !inputPath;
@@ -382,6 +377,69 @@ async function main() {
   }
 
   console.log('');
+
+  // ── Watch mode ──────────────────────────────────────────────
+  if (args.watch) {
+    console.log(`${c.cyan}Watching for changes...${c.reset} (press Ctrl+C to stop)\n`);
+
+    const watchPaths = [schemasPath];
+    if (inputPath) watchPaths.push(inputPath);
+
+    let debounceTimer = null;
+    const DEBOUNCE_MS = 300;
+
+    const onChange = (eventType, filename) => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        const changedFile = filename || '(unknown)';
+        console.log(`\n${c.cyan}${'─'.repeat(68)}${c.reset}`);
+        console.log(`${c.dim}[${new Date().toLocaleTimeString()}] Change detected: ${changedFile}${c.reset}`);
+        console.log(`${c.cyan}${'─'.repeat(68)}${c.reset}\n`);
+        try {
+          // Re-invoke main without --watch to avoid nested watchers
+          const reArgs = { ...args, watch: false, open: false };
+          await runSimulation(reArgs);
+        } catch (e) {
+          console.error(`${c.red}${c.bold}Error during re-run:${c.reset} ${e.message}`);
+        }
+        console.log(`${c.cyan}Watching for changes...${c.reset} (press Ctrl+C to stop)\n`);
+      }, DEBOUNCE_MS);
+    };
+
+    const watchers = [];
+    for (const wp of watchPaths) {
+      try {
+        const isDir = statSync(wp).isDirectory();
+        watchers.push(fsWatch(wp, { recursive: isDir }, onChange));
+      } catch {
+        console.error(`${c.yellow}⚠ Cannot watch ${wp}${c.reset}`);
+      }
+    }
+
+    // Keep process alive, clean up on exit
+    process.on('SIGINT', () => {
+      for (const w of watchers) w.close();
+      console.log(`\n${c.dim}Watch mode stopped.${c.reset}`);
+      process.exit(0);
+    });
+
+    // Return a promise that never resolves (keeps main alive)
+    return new Promise(() => {});
+  }
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.help) { showHelp(); process.exit(0); }
+
+  if (!args.schemas) {
+    console.error(`${c.red}Error: --schemas is required${c.reset}`);
+    showHelp();
+    process.exit(1);
+  }
+
+  await runSimulation(args);
 }
 
 // ── Pull sub-command ─────────────────────────────────────────────
@@ -394,6 +452,7 @@ async function pullMain(argv) {
     includeEntries: false,
     maxEntries: 1000,
     contentType: null,
+    preview: false,
     verbose: false,
     help: false,
   };
@@ -402,6 +461,7 @@ async function pullMain(argv) {
     if (arg === '--help' || arg === '-h') { args.help = true; continue; }
     if (arg === '--verbose' || arg === '-v') { args.verbose = true; continue; }
     if (arg === '--include-entries') { args.includeEntries = true; continue; }
+    if (arg === '--preview') { args.preview = true; continue; }
 
     const eq = arg.indexOf('=');
     if (eq === -1) continue;
@@ -431,9 +491,9 @@ async function pullMain(argv) {
   const outputDir = resolve(args.output);
 
   console.log(`\n${c.cyan}${'═'.repeat(68)}${c.reset}`);
-  console.log(`${c.bold}Content Model Simulator — Pull${c.reset}`);
+  console.log(`${c.bold}Content Model Simulator — Pull${c.reset}${args.preview ? ` ${c.yellow}(Preview API)${c.reset}` : ''}`);
   console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
-  console.log(`${c.dim}Downloading content model from Contentful (read-only)...${c.reset}\n`);
+  console.log(`${c.dim}Downloading content model from Contentful (read-only${args.preview ? ', including drafts' : ''})...${c.reset}\n`);
 
   const { pull } = await import('../dist/contentful/pull.js');
 
@@ -445,6 +505,7 @@ async function pullMain(argv) {
     includeEntries: args.includeEntries,
     maxEntries: args.maxEntries,
     contentType: args.contentType || undefined,
+    usePreview: args.preview,
     verbose: args.verbose,
   });
 
@@ -472,12 +533,96 @@ async function pullMain(argv) {
   console.log('');
 }
 
+// ── Diff sub-command ─────────────────────────────────────────────
+async function diffMain(argv) {
+  let oldDir = null, newDir = null, help = false, jsonOut = false;
+
+  for (const arg of argv) {
+    if (arg === '--help' || arg === '-h') { help = true; continue; }
+    if (arg === '--json') { jsonOut = true; continue; }
+
+    const eq = arg.indexOf('=');
+    if (eq === -1) continue;
+    const key = arg.startsWith('--') ? arg.substring(2, eq) : arg.substring(0, eq);
+    const val = arg.substring(eq + 1);
+
+    switch (key) {
+      case 'old': oldDir = val; break;
+      case 'new': newDir = val; break;
+    }
+  }
+
+  if (help || !oldDir || !newDir) {
+    console.log(`
+${c.bold}Content Model Simulator — Diff${c.reset}
+Compare two schema directories and show added, removed, and changed content types.
+
+${c.cyan}USAGE:${c.reset}
+  cms-sim diff --old=<dir> --new=<dir> [options]
+
+${c.cyan}REQUIRED:${c.reset}
+  --old=<dir>   Original schemas directory
+  --new=<dir>   Updated schemas directory
+
+${c.cyan}OPTIONS:${c.reset}
+  --json        Output diff as JSON
+  --help, -h    Show this help
+
+${c.cyan}EXAMPLE:${c.reset}
+  cms-sim diff --old=v1/schemas/ --new=v2/schemas/
+`);
+    process.exit(help ? 0 : 1);
+  }
+
+  const oldPath = resolve(oldDir);
+  const newPath = resolve(newDir);
+
+  if (!existsSync(oldPath)) {
+    console.error(`${c.red}Error: --old directory not found: ${oldPath}${c.reset}`);
+    process.exit(1);
+  }
+  if (!existsSync(newPath)) {
+    console.error(`${c.red}Error: --new directory not found: ${newPath}${c.reset}`);
+    process.exit(1);
+  }
+
+  const { SchemaRegistry: SR } = await import('../dist/core/schema-registry.js');
+  const { diffSchemas, formatDiff } = await import('../dist/core/schema-diff.js');
+
+  const oldSchemas = new SR();
+  await oldSchemas.loadFromDirectory(oldPath);
+  const newSchemas = new SR();
+  await newSchemas.loadFromDirectory(newPath);
+
+  const result = diffSchemas(oldSchemas.getAll(), newSchemas.getAll());
+
+  if (jsonOut) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    console.log(`\n${c.cyan}${'═'.repeat(68)}${c.reset}`);
+    console.log(`${c.bold}Content Model Simulator — Schema Diff${c.reset}`);
+    console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
+    console.log(`${c.dim}Old: ${oldPath}${c.reset}`);
+    console.log(`${c.dim}New: ${newPath}${c.reset}\n`);
+    console.log(formatDiff(result));
+    console.log('');
+  }
+}
+
 // ── Entry point ──────────────────────────────────────────────────
 const rawArgs = process.argv.slice(2);
-const subCommand = rawArgs[0] === 'pull' ? 'pull' : 'simulate';
+const subCommand = rawArgs[0] === 'pull' ? 'pull'
+  : rawArgs[0] === 'diff' ? 'diff'
+  : 'simulate';
 
 if (subCommand === 'pull') {
   pullMain(rawArgs.slice(1)).catch(err => {
+    console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);
+    if (process.env.DEBUG) console.error(err.stack);
+    process.exit(1);
+  });
+} else if (subCommand === 'diff') {
+  diffMain(rawArgs.slice(1)).catch(err => {
     console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);
     if (process.env.DEBUG) console.error(err.stack);
     process.exit(1);

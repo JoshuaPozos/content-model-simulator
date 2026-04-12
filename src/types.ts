@@ -227,6 +227,7 @@ export interface PullOptions {
   maxEntries?: number;
   contentType?: string;
   useCMA?: boolean;
+  usePreview?: boolean;
   verbose?: boolean;
 }
 
