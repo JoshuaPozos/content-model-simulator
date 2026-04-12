@@ -72,6 +72,8 @@ export { diffReports, formatReportDiff } from './core/report-diff.js';
 // ── Transform ────────────────────────────────────────────────────
 export { transformGeneric, TransformerRegistry } from './transform/transformer.js';
 export { generateEntryId, simpleHash, extractSelectKey, isImageObject, extractImageUrl, createLink, isLink } from './transform/helpers.js';
+export { htmlToRichText, looksLikeHTML, isRichTextDocument } from './transform/rich-text.js';
+export type { RichTextDocument, RichTextNode } from './transform/rich-text.js';
 
 // ── Extract ──────────────────────────────────────────────────────
 export { extractAssets, linkAssets } from './extract/assets.js';

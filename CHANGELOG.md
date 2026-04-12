@@ -25,7 +25,7 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry validation**: field-level checks against content type definitions
 - **`writeReport()`**: write simulation report to JSON
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
-- **Test suite**: 236 tests (unit + e2e), zero `as any` casts
+- **Test suite**: 290 tests (unit + e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
 - **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property
@@ -43,6 +43,7 @@ All notable changes to `content-model-simulator` are documented here.
 - **Plugin system** (`--plugins=<dir>`): auto-discovers `schemas/` and `transforms/` subdirectories, and loads root-level `.js` files with `setup({ schemas, transformers })` function. Works in both `simulate` and `validate` subcommands.
 - **Custom HTML templates** (`--template-css`, `--template-head`): inject custom CSS and `<head>` content into content browser and model graph HTML output. Enables branding, custom fonts, and styling overrides.
 - **`SECURITY.md`**: consolidated security documentation covering threat model, resolved vulnerabilities, accepted risks, and supply chain.
+- **Rich Text support** (`htmlToRichText`): zero-dependency HTML → Contentful Rich Text JSON converter. Auto-converts HTML strings in RichText fields during simulation. Supports headings, lists, marks, links, images, tables, blockquotes. Exported as public API with `looksLikeHTML()` and `isRichTextDocument()` helpers.
 
 ### Fixed
 - **Dynamic `import()` path containment** (CWE-94): `realpathSync()` check ensures schema, transform, and plugin files resolve within the specified directory (prevents symlink escape)

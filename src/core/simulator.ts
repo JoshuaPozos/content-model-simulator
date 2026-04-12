@@ -20,6 +20,7 @@ import { extractAssets, linkAssets } from '../extract/assets.js';
 import { extractNestedObjects } from '../extract/nested-objects.js';
 import { validateEntry } from './validator.js';
 import { generateEntryId, extractSelectKey } from '../transform/helpers.js';
+import { htmlToRichText, looksLikeHTML, isRichTextDocument } from '../transform/rich-text.js';
 import type {
   SimulateConfig, SimulationReport, SimulateOptions, ReportIssue, Entry, EntryFields,
   ContentTypeDefinition, Document, SchemaLike, SchemaInput, TransformerLike, TransformedEntry,
@@ -297,6 +298,31 @@ export function simulate(
             const val = fields[f.id]?.[baseLocale];
             if (val !== undefined) {
               fields[f.id] = { [baseLocale]: extractSelectKey(val) };
+            }
+          }
+        }
+      }
+
+      // Auto-convert HTML strings → Rich Text for RichText fields
+      const ctDefForRT = ctDefForSelect || getSchema(specificCtfType);
+      if (ctDefForRT) {
+        for (const f of ctDefForRT.fields || []) {
+          if (f.type === 'RichText') {
+            for (const loc of Object.keys(fields[f.id] || {})) {
+              const val = fields[f.id]?.[loc];
+              if (typeof val === 'string' && looksLikeHTML(val)) {
+                fields[f.id][loc] = htmlToRichText(val);
+                report.warnings.push({
+                  type: 'HTML_TO_RICHTEXT_CONVERTED',
+                  contentType: specificCtfType,
+                  field: f.id,
+                  entryId: specificEntryId,
+                  message: `Auto-converted HTML string to Rich Text document`,
+                });
+              } else if (typeof val === 'string' && val.trim()) {
+                // Plain text → wrap in Rich Text document
+                fields[f.id][loc] = htmlToRichText(val);
+              }
             }
           }
         }
