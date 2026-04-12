@@ -24,16 +24,16 @@ const SCHEMAS_DIR = path.resolve(import.meta.dirname, '..', 'examples', 'from-sc
 const DATA_FILE = path.resolve(import.meta.dirname, '..', 'examples', 'with-data', 'data', 'sample-export.ndjson');
 const SCHEMAS_DATA_DIR = path.resolve(import.meta.dirname, '..', 'examples', 'with-data', 'schemas');
 
-function tmpDir() {
+function tmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'cms-sim-e2e-'));
 }
 
-function cleanup(dir) {
+function cleanup(dir: string): void {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
 // Helper to run CLI
-async function cli(args, { env } = {}) {
+async function cli(args: string[], { env }: { env?: Record<string, string> } = {}): Promise<{ stdout: string; stderr: string }> {
   return run(NODE, [CLI, ...args], {
     env: { ...process.env, ...env, NO_COLOR: '1' },
     timeout: 30_000,
@@ -65,7 +65,7 @@ describe('CLI: help and args', () => {
   it('exits with error when --schemas is missing', async () => {
     await assert.rejects(
       () => cli([]),
-      (err) => {
+      (err: any) => {
         assert.ok(err.stderr.includes('--schemas is required') || err.stdout.includes('--schemas is required'));
         return true;
       }
@@ -75,7 +75,7 @@ describe('CLI: help and args', () => {
   it('exits with error when schemas dir does not exist', async () => {
     await assert.rejects(
       () => cli(['--schemas=/nonexistent/path']),
-      (err) => {
+      (err: any) => {
         const output = err.stderr + err.stdout;
         assert.ok(output.includes('not found') || output.includes('does not exist'));
         return true;
@@ -86,7 +86,7 @@ describe('CLI: help and args', () => {
   it('exits with error when input file does not exist', async () => {
     await assert.rejects(
       () => cli([`--schemas=${SCHEMAS_DIR}`, '--input=/nonexistent/file.ndjson']),
-      (err) => {
+      (err: any) => {
         const output = err.stderr + err.stdout;
         assert.ok(output.includes('not found') || output.includes('does not exist'));
         return true;
@@ -98,7 +98,7 @@ describe('CLI: help and args', () => {
 // ─── Workflow 1: From-scratch (mock data) ────────────────────────
 
 describe('CLI: from-scratch workflow (mock data)', () => {
-  let outDir;
+  let outDir: string | undefined;
 
   afterEach(() => {
     if (outDir) cleanup(outDir);
@@ -247,7 +247,7 @@ describe('CLI: from-scratch workflow (mock data)', () => {
 // ─── Workflow 2: Migration (with data) ───────────────────────────
 
 describe('CLI: migration workflow (with data)', () => {
-  let outDir;
+  let outDir: string | undefined;
 
   afterEach(() => {
     if (outDir) cleanup(outDir);
@@ -333,7 +333,7 @@ describe('CLI: pull error handling', () => {
   it('fails with missing --space-id and --access-token', async () => {
     await assert.rejects(
       () => cli(['pull'], { env: { CONTENTFUL_SPACE_ID: '', CONTENTFUL_ACCESS_TOKEN: '' } }),
-      (err) => {
+      (err: any) => {
         const output = (err.stderr || '') + (err.stdout || '');
         assert.ok(output.includes('Missing') || output.includes('error') || output.includes('Fatal'));
         return true;
@@ -344,7 +344,7 @@ describe('CLI: pull error handling', () => {
   it('fails with missing --access-token', async () => {
     await assert.rejects(
       () => cli(['pull', '--space-id=test123'], { env: { CONTENTFUL_ACCESS_TOKEN: '' } }),
-      (err) => {
+      (err: any) => {
         const output = (err.stderr || '') + (err.stdout || '');
         assert.ok(output.includes('Missing') || output.includes('access-token'));
         return true;
@@ -356,7 +356,7 @@ describe('CLI: pull error handling', () => {
 // ─── Verbose mode ────────────────────────────────────────────────
 
 describe('CLI: verbose mode', () => {
-  let outDir;
+  let outDir: string | undefined;
 
   afterEach(() => {
     if (outDir) cleanup(outDir);
@@ -379,7 +379,7 @@ describe('CLI: verbose mode', () => {
 // ─── Watch mode: fixed output dir ───────────────────────────────
 
 describe('CLI: watch mode output dir', () => {
-  let outDir;
+  let outDir: string | undefined;
 
   afterEach(() => {
     if (outDir) cleanup(outDir);
@@ -413,7 +413,7 @@ describe('CLI: validate subcommand', () => {
   it('fails without --schemas', async () => {
     await assert.rejects(
       () => cli(['validate']),
-      (err) => {
+      (err: any) => {
         const output = (err.stderr || '') + (err.stdout || '');
         assert.ok(output.includes('--schemas is required'));
         return true;
@@ -452,7 +452,7 @@ describe('CLI: validate subcommand', () => {
   it('fails with non-existent schemas dir', async () => {
     await assert.rejects(
       () => cli(['validate', '--schemas=/tmp/nonexistent-dir-xyz']),
-      (err) => {
+      (err: any) => {
         const output = (err.stderr || '') + (err.stdout || '');
         assert.ok(output.includes('not found'));
         return true;
@@ -474,7 +474,7 @@ describe('CLI: validate subcommand', () => {
 // ─── Init sub-command ────────────────────────────────────────────
 
 describe('CLI: init subcommand', () => {
-  let initDir;
+  let initDir: string | undefined;
 
   afterEach(() => {
     if (initDir && fs.existsSync(initDir)) {
@@ -507,7 +507,7 @@ describe('CLI: init subcommand', () => {
     fs.mkdirSync(initDir, { recursive: true });
     await assert.rejects(
       () => cli(['init', name]),
-      (err) => {
+      (err: any) => {
         const output = (err.stderr || '') + (err.stdout || '');
         assert.ok(output.includes('already exists'));
         return true;
@@ -544,7 +544,7 @@ describe('CLI: pull preview 401 detection', () => {
         '--access-token=bad-token',
         '--preview',
       ]),
-      (err) => {
+      (err: any) => {
         const output = (err.stderr || '') + (err.stdout || '');
         // Should mention CPA or Preview API in the error
         assert.ok(
@@ -554,5 +554,110 @@ describe('CLI: pull preview 401 detection', () => {
         return true;
       }
     );
+  });
+});
+
+// ── scaffold subcommand ──────────────────────────────────────────
+
+const WP_XML = path.resolve(import.meta.dirname, '..', 'examples', 'wordpress', 'data', 'gutenberg-test-data.xml');
+
+describe('CLI: scaffold', () => {
+  let tempDirs: string[] = [];
+  afterEach(() => {
+    for (const d of tempDirs) {
+      try { fs.rmSync(d, { recursive: true }); } catch {}
+    }
+    tempDirs = [];
+  });
+
+  function cli(args: string[]): Promise<{ stdout: string; stderr: string }> {
+    return run(NODE, [CLI, 'scaffold', ...args], { timeout: 15_000 });
+  }
+
+  it('shows help with --help flag', async () => {
+    const { stdout } = await cli(['--help']);
+    assert.ok(stdout.includes('scaffold'));
+    assert.ok(stdout.includes('--input'));
+    assert.ok(stdout.includes('--output'));
+  });
+
+  it('errors when --input is missing', async () => {
+    await assert.rejects(
+      () => cli([]),
+      (err: any) => {
+        assert.ok(err.stderr.includes('--input') || err.stdout.includes('--input'));
+        return true;
+      }
+    );
+  });
+
+  it('errors when input file does not exist', async () => {
+    await assert.rejects(
+      () => cli(['--input=nonexistent.xml']),
+      (err: any) => {
+        const output = (err.stderr || '') + (err.stdout || '');
+        assert.ok(output.includes('not found') || output.includes('ENOENT') || output.includes('No such'));
+        return true;
+      }
+    );
+  });
+
+  it('generates scaffold files from WordPress XML', async () => {
+    const outDir = tmpDir();
+    const dest = path.join(outDir, 'wp-migration');
+    tempDirs.push(outDir);
+
+    const { stdout } = await cli(['--input=' + WP_XML, '--output=' + dest]);
+
+    // Verify output mentions success
+    assert.ok(stdout.includes('blogPost') || stdout.includes('post'));
+
+    // Verify files were created
+    assert.ok(fs.existsSync(path.join(dest, 'schemas', 'blogPost.js')));
+    assert.ok(fs.existsSync(path.join(dest, 'transforms', 'wordpress.js')));
+    assert.ok(fs.existsSync(path.join(dest, 'README.md')));
+
+    // Verify schema content
+    const schema = fs.readFileSync(path.join(dest, 'schemas', 'blogPost.js'), 'utf8');
+    assert.ok(schema.includes('export default'));
+    assert.ok(schema.includes("id: 'blogPost'"));
+  });
+
+  it('generates schema for authors', async () => {
+    const outDir = tmpDir();
+    const dest = path.join(outDir, 'wp-scaffold');
+    tempDirs.push(outDir);
+
+    await cli(['--input=' + WP_XML, '--output=' + dest]);
+    assert.ok(fs.existsSync(path.join(dest, 'schemas', 'author.js')));
+
+    const schema = fs.readFileSync(path.join(dest, 'schemas', 'author.js'), 'utf8');
+    assert.ok(schema.includes("id: 'author'"));
+  });
+
+  it('errors when output directory already exists', async () => {
+    const outDir = tmpDir();
+    const dest = path.join(outDir, 'existing');
+    fs.mkdirSync(dest);
+    tempDirs.push(outDir);
+
+    await assert.rejects(
+      () => cli(['--input=' + WP_XML, '--output=' + dest]),
+      (err: any) => {
+        const output = (err.stderr || '') + (err.stdout || '');
+        assert.ok(output.includes('already exists') || output.includes('exists'));
+        return true;
+      }
+    );
+  });
+
+  it('shows verbose output with --verbose flag', async () => {
+    const outDir = tmpDir();
+    const dest = path.join(outDir, 'wp-verbose');
+    tempDirs.push(outDir);
+
+    const { stdout } = await cli(['--input=' + WP_XML, '--output=' + dest, '--verbose']);
+    // Verbose mode should print field details
+    assert.ok(stdout.includes('title') || stdout.includes('slug') || stdout.includes('body'));
   });
 });

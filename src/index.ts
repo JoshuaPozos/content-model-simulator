@@ -92,3 +92,5 @@ export { pull } from './contentful/pull.js';
 // ── WordPress ────────────────────────────────────────────────────
 export { readWXR, parseWXR, parseWXRString, stripGutenbergComments } from './wordpress/wxr-reader.js';
 export type { WXRReadOptions, WXRSite, WXRResult } from './wordpress/wxr-reader.js';
+export { analyzeWXR, generateScaffold, scaffoldFromWXR } from './wordpress/wxr-scaffold.js';
+export type { ScaffoldAnalysis, AnalyzedContentType, AnalyzedField, ScaffoldOptions, ScaffoldOutput } from './wordpress/wxr-scaffold.js';
