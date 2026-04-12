@@ -252,39 +252,74 @@ const typeColor = {
 };
 
 const ctEntries = Object.entries(DATA.contentTypes).filter(([,ct]) => ct.entryCount > 0 || ct.id === 'page');
-const cardW = 210, cardHeaderH = 42, fieldH = 22, cardFooterH = 26;
+const cardW = 260, cardHeaderH = 42, fieldH = 22, cardFooterH = 26, colGap = 160, rowGap = 40;
 
-const levels = { page: 0 };
 const rels = DATA.ctRelationships;
-function assignLevel(ctId, depth) {
-  if (levels[ctId] !== undefined && levels[ctId] >= depth) return;
-  levels[ctId] = depth;
-  rels.filter(r => r.from === ctId).forEach(r => assignLevel(r.to, depth + 1));
+
+// Build adjacency: who references whom
+const referencedBy = {};  // ctId → Set of CTs that reference it
+const references = {};     // ctId → Set of CTs it references
+ctEntries.forEach(([id]) => { referencedBy[id] = new Set(); references[id] = new Set(); });
+for (const rel of rels) {
+  if (references[rel.from]) references[rel.from].add(rel.to);
+  if (referencedBy[rel.to]) referencedBy[rel.to].add(rel.from);
 }
-assignLevel('page', 0);
-ctEntries.forEach(([id]) => { if (levels[id] === undefined) levels[id] = 1; });
+
+// Topological level assignment via BFS from roots (CTs not referenced by others)
+const levels = {};
+const allCtIds = ctEntries.map(([id]) => id);
+const roots = allCtIds.filter(id => referencedBy[id].size === 0);
+// If no pure roots (circular), pick CTs with highest out-degree
+if (roots.length === 0) {
+  const sorted = [...allCtIds].sort((a, b) => references[b].size - references[a].size);
+  roots.push(sorted[0]);
+}
+// BFS
+const queue = roots.map(id => ({ id, depth: 0 }));
+const visited = new Set();
+while (queue.length > 0) {
+  const { id, depth } = queue.shift();
+  if (visited.has(id)) { levels[id] = Math.max(levels[id] || 0, depth); continue; }
+  visited.add(id);
+  levels[id] = depth;
+  for (const target of (references[id] || [])) {
+    if (!visited.has(target)) queue.push({ id: target, depth: depth + 1 });
+  }
+}
+// Assign unvisited CTs (disconnected) to level 0
+allCtIds.forEach(id => { if (levels[id] === undefined) levels[id] = 0; });
 
 const byLevel = {};
 ctEntries.forEach(([id]) => {
-  const lvl = levels[id] || 2;
+  const lvl = levels[id];
   if (!byLevel[lvl]) byLevel[lvl] = [];
   byLevel[lvl].push(id);
+});
+// Sort within each level: more entries first, alphabetical tiebreak
+Object.values(byLevel).forEach(ids => {
+  ids.sort((a, b) => {
+    const diff = (DATA.contentTypes[b]?.entryCount || 0) - (DATA.contentTypes[a]?.entryCount || 0);
+    return diff !== 0 ? diff : a.localeCompare(b);
+  });
 });
 
 const positions = {};
 let maxX = 0;
-Object.keys(byLevel).sort((a,b) => a - b).forEach((lvl, li) => {
+const sortedLevels = Object.keys(byLevel).sort((a,b) => a - b);
+sortedLevels.forEach((lvl, li) => {
   const ids = byLevel[lvl];
-  const x = li * (cardW + 120) + 60;
-  ids.forEach((id, i) => { positions[id] = { x, y: i * 160 + 60 }; });
+  const x = li * (cardW + colGap) + 60;
+  ids.forEach((id, i) => { positions[id] = { x, y: i * (cardHeaderH + cardFooterH + rowGap) + 60 }; });
   maxX = Math.max(maxX, x + cardW + 60);
 });
 
-Object.keys(byLevel).forEach(lvl => {
+// Vertically center each column relative to the tallest
+const colHeights = sortedLevels.map(lvl => byLevel[lvl].length * (cardHeaderH + cardFooterH + rowGap));
+const maxHeight = Math.max(...colHeights);
+sortedLevels.forEach((lvl) => {
   const ids = byLevel[lvl];
-  const totalH = ids.length * 160;
-  const maxOtherH = Math.max(...Object.values(byLevel).map(arr => arr.length * 160));
-  const offsetY = (maxOtherH - totalH) / 2;
+  const totalH = ids.length * (cardHeaderH + cardFooterH + rowGap);
+  const offsetY = (maxHeight - totalH) / 2;
   ids.forEach(id => { positions[id].y += offsetY; });
 });
 
