@@ -1,29 +1,21 @@
 /**
  * Content Model Simulator — Model Graph HTML Generator
- *
- * Generates a single-file HTML application with an interactive
- * SVG graph showing content type relationships.
- *
- * Features:
- * - Content types as draggable card nodes
- * - Directed edges showing Entry->Entry relationships
- * - Field lists expandable on click
- * - Sidebar with CT list, entry list, issues
- * - Pan, zoom, fit controls
- * - Detail panel for CT inspection
  */
 
-/**
- * Generate the Content Model Graph HTML from a report object.
- *
- * @param {object} report - Simulation report
- * @returns {string} Complete HTML document
- */
-export function generateModelGraphHTML(report) {
+import type { SimulationReport, Entry } from '../types.js';
+
+interface CTRelationship {
+  from: string;
+  to: string;
+  fieldName: string;
+  count: number;
+}
+
+export function generateModelGraphHTML(report: SimulationReport): string {
   // Pre-compute CT→CT relationship edges
-  const ctRelationships = [];
-  const relMap = new Map();
-  const entryIdToEntry = new Map();
+  const ctRelationships: CTRelationship[] = [];
+  const relMap = new Map<string, CTRelationship>();
+  const entryIdToEntry = new Map<string, Entry>();
   for (const e of report.entries) {
     entryIdToEntry.set(e.id, e);
     if (e.sourceId) entryIdToEntry.set(e.sourceId, e);
@@ -31,14 +23,14 @@ export function generateModelGraphHTML(report) {
 
   for (const entry of report.entries) {
     for (const [fieldName, fw] of Object.entries(entry.fields)) {
-      const val = fw?.[report.baseLocale];
-      const targets = [];
+      const val = fw?.[report.baseLocale] as any;
+      const targets: string[] = [];
       if (val?.sys?.linkType === 'Entry') targets.push(val.sys.id);
       if (Array.isArray(val)) {
         for (const item of val) {
           if (item?.sys?.linkType === 'Entry') targets.push(item.sys.id);
-          if (item && typeof item === 'object' && !item.sys) {
-            for (const subVal of Object.values(item)) {
+          if (item && typeof item === 'object' && !(item as any).sys) {
+            for (const subVal of Object.values(item as Record<string, any>)) {
               if (subVal?.sys?.linkType === 'Entry') targets.push(subVal.sys.id);
             }
           }
@@ -49,7 +41,7 @@ export function generateModelGraphHTML(report) {
         if (targetEntry) {
           const key = `${entry.contentType}→${targetEntry.contentType}`;
           if (!relMap.has(key)) relMap.set(key, { from: entry.contentType, to: targetEntry.contentType, fieldName, count: 0 });
-          relMap.get(key).count++;
+          relMap.get(key)!.count++;
         }
       }
     }
@@ -57,7 +49,7 @@ export function generateModelGraphHTML(report) {
 
   // Page → component CTs
   if (report.pageEntry) {
-    const ctsInPage = new Set();
+    const ctsInPage = new Set<string>();
     const allComponentIds = Object.values(report.pageEntry.sections).flat();
     for (const compId of allComponentIds) {
       const entry = report.entries.find(e => e.id === compId);
@@ -160,7 +152,7 @@ ${GRAPH_JS}
 </html>`;
 }
 
-function escapeHtml(s) {
+function escapeHtml(s: unknown): string {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
@@ -238,6 +230,7 @@ svg.graph { width: 100%; height: 100%; }
 `;
 
 const GRAPH_JS = `
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 const canvas = document.getElementById('canvas');
 let svgEl, gEl;
 let viewBox = { x: 0, y: 0, w: 1400, h: 900 };
@@ -487,7 +480,7 @@ Object.entries(DATA.contentTypes).sort((a,b) => b[1].entryCount - a[1].entryCoun
   li.className = 'list-item';
   const hasWarnings = DATA.warnings.some(w => w.contentType === ctId);
   const dotColor = hasWarnings ? '#D97706' : '#059669';
-  li.innerHTML = '<div class="title"><span class="dot" style="background:' + dotColor + '"></span>' + ct.name + '</div><div class="meta">' + ctId + ' · ' + ct.entryCount + ' entries · ' + ct.fields.length + ' fields</div>';
+  li.innerHTML = '<div class="title"><span class="dot" style="background:' + dotColor + '"></span>' + esc(ct.name) + '</div><div class="meta">' + esc(ctId) + ' · ' + ct.entryCount + ' entries · ' + ct.fields.length + ' fields</div>';
   li.onclick = () => showCtDetail(ctId);
   ctList.appendChild(li);
 });
@@ -497,7 +490,7 @@ const entryList = document.getElementById('entry-list');
 DATA.entries.forEach(e => {
   const li = document.createElement('li');
   li.className = 'list-item';
-  li.innerHTML = '<div class="title" style="font-family:monospace;font-size:0.72rem;color:#818CF8">' + e.id.substring(0, 55) + '</div><div class="meta">' + e.contentType + ' · ' + e.locale + ' · ' + Object.keys(e.fields).length + ' fields</div>';
+  li.innerHTML = '<div class="title" style="font-family:monospace;font-size:0.72rem;color:#818CF8">' + esc(e.id.substring(0, 55)) + '</div><div class="meta">' + esc(e.contentType) + ' · ' + esc(e.locale) + ' · ' + Object.keys(e.fields).length + ' fields</div>';
   entryList.appendChild(li);
 });
 
@@ -508,13 +501,13 @@ DATA.warnings.forEach(w => { if (!warnGroups[w.type]) warnGroups[w.type] = []; w
 DATA.errors.forEach(e => {
   const li = document.createElement('li');
   li.className = 'issue-item error';
-  li.innerHTML = '<div class="itype" style="color:#FCA5A5">❌ ' + e.type + '</div><div class="imsg">' + (e.contentType||'') + ' ' + (e.message||'') + '</div>';
+  li.innerHTML = '<div class="itype" style="color:#FCA5A5">❌ ' + esc(e.type) + '</div><div class="imsg">' + esc(e.contentType||'') + ' ' + esc(e.message||'') + '</div>';
   issueList.appendChild(li);
 });
 Object.entries(warnGroups).forEach(([type, items]) => {
   const li = document.createElement('li');
   li.className = 'issue-item warning';
-  li.innerHTML = '<div class="itype" style="color:#FCD34D">⚠️ ' + type + ' (' + items.length + ')</div><div class="imsg">' + items.slice(0,3).map(w => (w.contentType||'') + (w.field ? '.' + w.field : '')).join(', ') + (items.length > 3 ? ', …+' + (items.length-3) + ' more' : '') + '</div>';
+  li.innerHTML = '<div class="itype" style="color:#FCD34D">⚠️ ' + esc(type) + ' (' + items.length + ')</div><div class="imsg">' + items.slice(0,3).map(w => esc((w.contentType||'') + (w.field ? '.' + w.field : ''))).join(', ') + (items.length > 3 ? ', …+' + (items.length-3) + ' more' : '') + '</div>';
   issueList.appendChild(li);
 });
 

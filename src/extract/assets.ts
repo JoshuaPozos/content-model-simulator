@@ -6,25 +6,17 @@
  */
 
 import { generateEntryId, simpleHash } from '../transform/helpers.js';
+import type { Document, Asset, ExtractAssetsOptions, ExtractAssetsResult } from '../types.js';
 
-/**
- * Extract all assets (images) from a collection of documents.
- *
- * @param {Array<object>} documents - Source documents with { fields, path? }
- * @param {object} [options]
- * @param {function} [options.isAsset] - Custom asset detection function (default: checks links.resource.href)
- * @param {function} [options.getAssetUrl] - Custom URL extraction (default: obj.links.resource.href)
- * @returns {{ assets: Array<object>, urlToAssetId: Map<string, string> }}
- */
-export function extractAssets(documents, options = {}) {
+export function extractAssets(documents: Document[], options: ExtractAssetsOptions = {}): ExtractAssetsResult {
   const {
     isAsset = defaultIsAsset,
     getAssetUrl = defaultGetAssetUrl,
   } = options;
 
-  const imageUrlMap = new Map(); // url → { id, title, url, referencedBy }
+  const imageUrlMap = new Map<string, { id: string; title: string; url: string; referencedBy: string[] }>();
 
-  function walk(obj, docPath) {
+  function walk(obj: unknown, docPath: string): void {
     if (!obj || typeof obj !== 'object') return;
     if (Array.isArray(obj)) {
       obj.forEach(item => walk(item, docPath));
@@ -44,13 +36,13 @@ export function extractAssets(documents, options = {}) {
             referencedBy: [docPath],
           });
         } else {
-          imageUrlMap.get(url).referencedBy.push(docPath);
+          imageUrlMap.get(url)!.referencedBy!.push(docPath);
         }
       }
       return;
     }
 
-    for (const val of Object.values(obj)) {
+    for (const val of Object.values(obj as Record<string, unknown>)) {
       walk(val, docPath);
     }
   }
@@ -59,8 +51,13 @@ export function extractAssets(documents, options = {}) {
     walk(doc.fields, doc.path || doc.id || 'unknown');
   }
 
-  const assets = [...imageUrlMap.values()];
-  const urlToAssetId = new Map();
+  const assets: Asset[] = [...imageUrlMap.values()].map(info => ({
+    id: info.id,
+    title: info.title,
+    url: info.url,
+    referencedBy: info.referencedBy,
+  }));
+  const urlToAssetId = new Map<string, string>();
   for (const [url, info] of imageUrlMap) {
     urlToAssetId.set(url, info.id);
   }
@@ -68,17 +65,12 @@ export function extractAssets(documents, options = {}) {
   return { assets, urlToAssetId };
 }
 
-/**
- * Link assets in entry fields — replace image objects with Asset link references.
- *
- * @param {object} fields - Entry fields { fieldName: { locale: value } }
- * @param {Map<string, string>} urlToAssetId - URL → Asset ID map
- * @param {string} baseLocale
- * @param {object} [options]
- * @param {function} [options.isAsset]
- * @param {function} [options.getAssetUrl]
- */
-export function linkAssets(fields, urlToAssetId, baseLocale, options = {}) {
+export function linkAssets(
+  fields: Record<string, Record<string, unknown>>,
+  urlToAssetId: Map<string, string>,
+  baseLocale: string,
+  options: ExtractAssetsOptions = {},
+): void {
   const {
     isAsset = defaultIsAsset,
     getAssetUrl = defaultGetAssetUrl,
@@ -99,10 +91,10 @@ export function linkAssets(fields, urlToAssetId, baseLocale, options = {}) {
 
 // ─── Default detectors ─────────────────────────────────────────────
 
-function defaultIsAsset(obj) {
-  return !!(obj && typeof obj === 'object' && obj.links?.resource?.href);
+function defaultIsAsset(obj: unknown): boolean {
+  return !!(obj && typeof obj === 'object' && (obj as Record<string, any>).links?.resource?.href);
 }
 
-function defaultGetAssetUrl(obj) {
-  return obj?.links?.resource?.href || null;
+function defaultGetAssetUrl(obj: unknown): string | null {
+  return (obj as Record<string, any>)?.links?.resource?.href || null;
 }

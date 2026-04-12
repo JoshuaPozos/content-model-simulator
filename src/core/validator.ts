@@ -5,17 +5,15 @@
  * Produces errors and warnings without calling any external API.
  */
 
-/**
- * Validate an entry's fields against its content type definition.
- *
- * @param {object} entry - { id, contentType, fields }
- * @param {object} ctDef - Content type definition
- * @param {string} baseLocale
- * @returns {{ errors: Array<object>, warnings: Array<object> }}
- */
-export function validateEntry(entry, ctDef, baseLocale) {
-  const errors = [];
-  const warnings = [];
+import type { Entry, ContentTypeDefinition, ReportIssue, SchemaLike } from '../types.js';
+
+export function validateEntry(
+  entry: Pick<Entry, 'id' | 'contentType' | 'fields'>,
+  ctDef: ContentTypeDefinition | null | undefined,
+  baseLocale: string,
+): { errors: ReportIssue[]; warnings: ReportIssue[] } {
+  const errors: ReportIssue[] = [];
+  const warnings: ReportIssue[] = [];
 
   if (!ctDef) {
     errors.push({
@@ -57,8 +55,8 @@ export function validateEntry(entry, ctDef, baseLocale) {
   // Check Link:Asset fields have proper links
   for (const fieldDef of (ctDef.fields || [])) {
     if (fieldDef.type === 'Link' && fieldDef.linkType === 'Asset' && entry.fields[fieldDef.id]) {
-      const val = entry.fields[fieldDef.id]?.[baseLocale];
-      if (val && val.sys?.linkType !== 'Asset' && typeof val === 'object' && !val.sys) {
+      const val = entry.fields[fieldDef.id]?.[baseLocale] as Record<string, any> | undefined;
+      if (val && (val as any).sys?.linkType !== 'Asset' && typeof val === 'object' && !(val as any).sys) {
         warnings.push({
           type: 'ASSET_FIELD_NOT_LINKED',
           contentType: entry.contentType,
@@ -94,18 +92,16 @@ export function validateEntry(entry, ctDef, baseLocale) {
   return { errors, warnings };
 }
 
-/**
- * Validate all entries in a report.
- *
- * @param {Array<object>} entries
- * @param {object} schemas - Schema registry or plain object of definitions
- * @param {string} baseLocale
- * @returns {{ errors: Array<object>, warnings: Array<object> }}
- */
-export function validateAll(entries, schemas, baseLocale) {
-  const allErrors = [];
-  const allWarnings = [];
-  const getSchema = typeof schemas.get === 'function' ? schemas.get.bind(schemas) : (id) => schemas[id];
+export function validateAll(
+  entries: Array<Pick<Entry, 'id' | 'contentType' | 'fields'>>,
+  schemas: SchemaLike | Record<string, ContentTypeDefinition>,
+  baseLocale: string,
+): { errors: ReportIssue[]; warnings: ReportIssue[] } {
+  const allErrors: ReportIssue[] = [];
+  const allWarnings: ReportIssue[] = [];
+  const getSchema = typeof (schemas as SchemaLike).get === 'function'
+    ? (schemas as SchemaLike).get!.bind(schemas)
+    : (id: string) => (schemas as Record<string, ContentTypeDefinition>)[id];
 
   for (const entry of entries) {
     const ctDef = getSchema(entry.contentType);

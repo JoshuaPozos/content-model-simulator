@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { pull } from './pull.js';
+import { pull } from '../../dist/contentful/pull.js';
 
 const mockCT = {
   sys: { id: 'blogPost', type: 'ContentType' },

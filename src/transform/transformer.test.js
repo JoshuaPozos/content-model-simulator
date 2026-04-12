@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { transformGeneric, TransformerRegistry } from './transformer.js';
+import { transformGeneric, TransformerRegistry } from '../../dist/transform/transformer.js';
 
 const sampleDoc = {
   id: 'doc1',

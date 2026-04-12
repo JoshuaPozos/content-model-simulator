@@ -7,6 +7,7 @@
  */
 
 import { generateEntryId } from '../transform/helpers.js';
+import type { ContentTypeDefinition, ContentTypeField, Document, Asset, MockDataOptions, MockDataResult, SchemaLike } from '../types.js';
 
 /**
  * Field-type generators. Each returns a plausible sample value.
@@ -46,19 +47,15 @@ const SAMPLE_URLS = [
   'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800',
 ];
 
-function pick(arr, index) {
+function pick<T>(arr: T[], index: number): T {
   return arr[index % arr.length];
 }
 
-/**
- * Generate a sample value for a given field definition.
- *
- * @param {object} fieldDef - Contentful field definition
- * @param {number} seed - Numeric seed for variation
- * @param {object} [context] - { locale, allSchemas, mockEntryIds }
- * @returns {*} Sample value
- */
-function generateFieldValue(fieldDef, seed, context = {}) {
+function generateFieldValue(
+  fieldDef: ContentTypeField,
+  seed: number,
+  context: { locale?: string; allSchemas?: Record<string, ContentTypeDefinition>; mockEntryIds?: Record<string, string[]> } = {},
+): unknown {
   const { locale = 'en', allSchemas = {}, mockEntryIds = {} } = context;
   const type = fieldDef.type;
   const linkType = fieldDef.linkType || fieldDef.items?.linkType;
@@ -82,7 +79,7 @@ function generateFieldValue(fieldDef, seed, context = {}) {
       // Selects: if there are validations with `in`, pick from those
       if (fieldDef.validations) {
         const inVal = fieldDef.validations.find(v => v.in);
-        if (inVal) return pick(inVal.in, seed);
+        if (inVal?.in) return pick(inVal.in, seed);
       }
       return pick(SAMPLE_TITLES, seed);
     }
@@ -182,10 +179,7 @@ function generateFieldValue(fieldDef, seed, context = {}) {
   }
 }
 
-/**
- * Find target content type IDs for a Link field based on validations.
- */
-function findLinkTargetCTs(fieldDef, allSchemas) {
+function findLinkTargetCTs(fieldDef: ContentTypeField, allSchemas: Record<string, ContentTypeDefinition>): string[] {
   const validations = fieldDef.validations || fieldDef.items?.validations || [];
   for (const v of validations) {
     if (v.linkContentType && v.linkContentType.length > 0) {
@@ -196,18 +190,10 @@ function findLinkTargetCTs(fieldDef, allSchemas) {
   return Object.keys(allSchemas);
 }
 
-/**
- * Generate mock entries for all content types in a schema registry.
- *
- * @param {object} schemas - SchemaRegistry instance or plain object { ctId: definition }
- * @param {object} [options]
- * @param {number} [options.entriesPerType=3] - How many mock entries per CT
- * @param {string} [options.baseLocale='en'] - Base locale
- * @param {string[]} [options.locales] - All locales to generate (default: [baseLocale])
- * @param {string} [options.name='mock'] - Project name prefix for IDs
- * @returns {{ documents: Array<object>, assets: Array<object> }}
- */
-export function generateMockData(schemas, options = {}) {
+export function generateMockData(
+  schemas: SchemaLike | Record<string, ContentTypeDefinition>,
+  options: MockDataOptions = {},
+): MockDataResult {
   const {
     entriesPerType = 3,
     baseLocale = 'en',
@@ -215,12 +201,14 @@ export function generateMockData(schemas, options = {}) {
     name = 'mock',
   } = options;
 
-  const allSchemas = typeof schemas.getAll === 'function' ? schemas.getAll() : schemas;
-  const documents = [];
-  const assetIds = new Set();
+  const allSchemas = typeof (schemas as SchemaLike).getAll === 'function'
+    ? (schemas as SchemaLike).getAll!()
+    : schemas as Record<string, ContentTypeDefinition>;
+  const documents: Document[] = [];
+  const assetIds = new Set<string>();
 
   // Pre-generate entry IDs so Link:Entry fields can reference them
-  const mockEntryIds = {};
+  const mockEntryIds: Record<string, string[]> = {};
   for (const [ctId] of Object.entries(allSchemas)) {
     mockEntryIds[ctId] = [];
     for (let i = 0; i < entriesPerType; i++) {
@@ -236,7 +224,7 @@ export function generateMockData(schemas, options = {}) {
     for (let i = 0; i < entriesPerType; i++) {
       for (const locale of locales) {
         const entryId = mockEntryIds[ctId][i * locales.length + locales.indexOf(locale)];
-        const data = {};
+        const data: Record<string, unknown> = {};
 
         for (const field of ctDef.fields || []) {
           const seed = idCounter + i * 7 + locales.indexOf(locale) * 3;
@@ -264,8 +252,7 @@ export function generateMockData(schemas, options = {}) {
     }
   }
 
-  // Generate mock asset objects
-  const assets = [...assetIds].map((assetId, i) => ({
+  const assets: Asset[] = [...assetIds].map((assetId, i) => ({
     id: assetId,
     title: `Sample Image ${i + 1}`,
     file: {
@@ -278,9 +265,9 @@ export function generateMockData(schemas, options = {}) {
   return { documents, assets };
 }
 
-function collectAssetIds(value, set) {
+function collectAssetIds(value: unknown, set: Set<string>): void {
   if (!value || typeof value !== 'object') return;
-  if (value.sys?.linkType === 'Asset') { set.add(value.sys.id); return; }
+  if ((value as any).sys?.linkType === 'Asset') { set.add((value as any).sys.id); return; }
   if (Array.isArray(value)) { value.forEach(v => collectAssetIds(v, set)); return; }
-  for (const v of Object.values(value)) collectAssetIds(v, set);
+  for (const v of Object.values(value as Record<string, unknown>)) collectAssetIds(v, set);
 }

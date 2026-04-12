@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractNestedObjects } from './nested-objects.js';
+import { extractNestedObjects } from '../../dist/extract/nested-objects.js';
 
 const parentCtDef = {
   id: 'page',

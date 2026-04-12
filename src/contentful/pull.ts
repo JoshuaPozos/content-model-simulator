@@ -9,18 +9,19 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { ContentTypeDefinition, ContentTypeField, Document, PullOptions, PullResult } from '../types.js';
 
 // ── API helpers ──────────────────────────────────────────────────
 
 const CDA_BASE = 'https://cdn.contentful.com';
 const CMA_BASE = 'https://api.contentful.com';
 
-/**
- * Fetch a paginated Contentful API endpoint, collecting all items.
- * Handles the `skip` / `limit` / `total` pagination pattern.
- */
-async function fetchAll(url, headers, { verbose = false, maxItems = Infinity } = {}) {
-  const items = [];
+async function fetchAll(
+  url: string,
+  headers: Record<string, string>,
+  { verbose = false, maxItems = Infinity }: { verbose?: boolean; maxItems?: number } = {},
+): Promise<any[]> {
+  const items: any[] = [];
   let skip = 0;
   const limit = 100;
 
@@ -48,18 +49,14 @@ async function fetchAll(url, headers, { verbose = false, maxItems = Infinity } =
 
 // ── Schema conversion ────────────────────────────────────────────
 
-/**
- * Convert a Contentful API content type to our schema format.
- * Strips sys metadata, keeps only the fields our simulator uses.
- */
-function toSchema(ct) {
+function toSchema(ct: any): ContentTypeDefinition {
   return {
     id: ct.sys.id,
     name: ct.name,
     description: ct.description || undefined,
     displayField: ct.displayField || undefined,
-    fields: (ct.fields || []).map(f => {
-      const field = {
+    fields: (ct.fields || []).map((f: any) => {
+      const field: Record<string, any> = {
         id: f.id,
         name: f.name,
         type: f.type,
@@ -89,26 +86,22 @@ function toSchema(ct) {
         field.defaultValue = f.defaultValue;
       }
 
-      return field;
+      return field as ContentTypeField;
     }),
   };
 }
 
-/**
- * Convert a Contentful entry to our NDJSON document format.
- * Expands all locales into separate per-locale documents.
- */
-function toDocuments(entry, locales) {
+function toDocuments(entry: any, locales: string[]): Document[] {
   const ctId = entry.sys.contentType?.sys?.id || 'unknown';
-  const docs = [];
+  const docs: Document[] = [];
 
   for (const locale of locales) {
-    const data = {};
+    const data: Record<string, unknown> = {};
     let hasData = false;
 
     for (const [fieldId, localeValues] of Object.entries(entry.fields || {})) {
-      if (localeValues[locale] !== undefined) {
-        data[fieldId] = localeValues[locale];
+      if ((localeValues as Record<string, unknown>)[locale] !== undefined) {
+        data[fieldId] = (localeValues as Record<string, unknown>)[locale];
         hasData = true;
       }
     }
@@ -129,21 +122,7 @@ function toDocuments(entry, locales) {
 
 // ── Main pull function ───────────────────────────────────────────
 
-/**
- * Pull content types, locales, and optionally entries from Contentful.
- *
- * @param {object} options
- * @param {string} options.spaceId - Contentful space ID
- * @param {string} options.accessToken - CDA or CMA access token
- * @param {string} [options.environment='master'] - Environment ID
- * @param {string} options.outputDir - Directory to write schemas and data
- * @param {boolean} [options.includeEntries=false] - Also download entries
- * @param {number} [options.maxEntries=1000] - Max entries to download
- * @param {boolean} [options.useCMA=false] - Use CMA instead of CDA (for drafts)
- * @param {boolean} [options.verbose=false]
- * @returns {object} { contentTypes, locales, entries? }
- */
-export async function pull(options) {
+export async function pull(options: PullOptions): Promise<PullResult> {
   const {
     spaceId,
     accessToken,
@@ -165,8 +144,8 @@ export async function pull(options) {
   // ── Fetch locales ──────────────────────────────────────────
   if (verbose) console.log('\nFetching locales...');
   const localesRaw = await fetchAll(`${envUrl}/locales`, headers, { verbose });
-  const locales = localesRaw.map(l => l.code);
-  const defaultLocale = localesRaw.find(l => l.default)?.code || locales[0] || 'en';
+  const locales = localesRaw.map((l: any) => l.code as string);
+  const defaultLocale = localesRaw.find((l: any) => l.default)?.code || locales[0] || 'en';
   if (verbose) console.log(`  Found ${locales.length} locale(s): ${locales.join(', ')}`);
 
   // ── Fetch content types ────────────────────────────────────
@@ -176,7 +155,7 @@ export async function pull(options) {
   if (verbose) console.log(`  Found ${schemas.length} content type(s)`);
 
   // ── Optionally fetch entries ───────────────────────────────
-  let documents = null;
+  let documents: Document[] | null = null;
   if (includeEntries) {
     if (verbose) console.log('\nFetching entries...');
     const entriesRaw = await fetchAll(

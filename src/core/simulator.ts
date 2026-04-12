@@ -20,26 +20,12 @@ import { extractAssets, linkAssets } from '../extract/assets.js';
 import { extractNestedObjects } from '../extract/nested-objects.js';
 import { validateEntry } from './validator.js';
 import { generateEntryId, extractSelectKey } from '../transform/helpers.js';
+import type {
+  SimulateConfig, SimulationReport, ReportIssue, Entry, EntryFields,
+  ContentTypeDefinition, Document, SchemaLike, TransformerLike, TransformedEntry,
+} from '../types.js';
 
-/**
- * Run the full simulation pipeline.
- *
- * @param {object} config
- * @param {Array<object>} config.documents - Source documents
- * @param {object} config.schemas - SchemaRegistry instance or plain object of CT definitions
- * @param {object} [config.transformers] - TransformerRegistry instance (optional)
- * @param {object} [config.options]
- * @param {string} [config.options.baseLocale='en'] - Base locale code
- * @param {string[]} [config.options.locales] - All locale codes
- * @param {string} [config.options.name='simulation'] - Simulation name
- * @param {object} [config.options.localeMap] - Source locale → target locale mapping
- * @param {object} [config.options.fieldGroupMap] - Nested object extraction config
- * @param {function} [config.options.isAsset] - Custom asset detection
- * @param {function} [config.options.getAssetUrl] - Custom asset URL extraction
- * @param {boolean} [config.options.verbose=false]
- * @returns {object} Report object
- */
-export function simulate(config) {
+export function simulate(config: SimulateConfig): SimulationReport {
   const {
     documents,
     schemas,
@@ -60,28 +46,32 @@ export function simulate(config) {
 
   // Resolve locale mapping function
   const effectiveLocaleMap = localeMap || {};
-  const mapLocale = (sourceLocale) => {
+  const mapLocale = (sourceLocale?: string): string => {
     if (!sourceLocale) return baseLocale;
     return effectiveLocaleMap[sourceLocale] || sourceLocale;
   };
 
   // Schema access helpers
-  const getSchema = typeof schemas.get === 'function' ? schemas.get.bind(schemas) : (id) => schemas[id];
-  const getAllSchemas = typeof schemas.getAll === 'function' ? schemas.getAll.bind(schemas) : () => schemas;
+  const getSchema = typeof (schemas as SchemaLike).get === 'function'
+    ? (schemas as SchemaLike).get!.bind(schemas)
+    : (id: string) => (schemas as Record<string, ContentTypeDefinition>)[id];
+  const getAllSchemas = typeof (schemas as SchemaLike).getAll === 'function'
+    ? (schemas as SchemaLike).getAll!.bind(schemas)
+    : () => schemas as Record<string, ContentTypeDefinition>;
 
   // Transformer access helpers
   const getTransformer = transformers
-    ? (ct) => transformers.get(ct)
-    : () => null; // no custom transformers — use generic
+    ? (ct: string) => (transformers as TransformerLike).get(ct)
+    : () => null;
   const getTargetType = transformers
-    ? (ct) => transformers.getTargetType(ct)
-    : (ct) => ct;
+    ? (ct: string) => (transformers as TransformerLike).getTargetType(ct)
+    : (ct: string) => ct;
   const isSkipped = transformers
-    ? (ct) => transformers.isSkipped(ct)
+    ? (ct: string) => (transformers as TransformerLike).isSkipped(ct)
     : () => false;
 
   // ─── Initialize report ─────────────────────────────────────────────
-  const report = {
+  const report: SimulationReport = {
     page: name,
     timestamp: new Date().toISOString(),
     baseLocale,
@@ -92,12 +82,12 @@ export function simulate(config) {
     pageEntry: null,
     errors: [],
     warnings: [],
-    stats: { totalEntries: 0, totalAssets: 0, totalCTs: 0 },
+    stats: { totalEntries: 0, totalComponents: 0, totalAssets: 0, totalCTs: 0, totalLocales: 0, totalErrors: 0, totalWarnings: 0 },
   };
 
   // ─── Detect locales if not explicit ────────────────────────────────
   if (!explicitLocales) {
-    const localeSet = new Set();
+    const localeSet = new Set<string>();
     for (const doc of documents) {
       const locale = mapLocale(doc.locale);
       if (locale) localeSet.add(locale);
@@ -107,7 +97,7 @@ export function simulate(config) {
   }
 
   // ─── Detect needed content types ───────────────────────────────────
-  const neededCTs = new Set();
+  const neededCTs = new Set<string>();
   for (const doc of documents) {
     const targetType = getTargetType(doc.contentType);
     if (targetType && !isSkipped(doc.contentType)) {
@@ -160,7 +150,7 @@ export function simulate(config) {
     const locale = mapLocale(doc.locale) || baseLocale;
     const transformer = getTransformer(doc.contentType);
 
-    let transformed;
+    let transformed: TransformedEntry | TransformedEntry[];
     try {
       if (transformer) {
         transformed = transformer(doc, locale, { mapLocale, schemas: getAllSchemas() });
@@ -172,7 +162,7 @@ export function simulate(config) {
         type: 'TRANSFORM_ERROR',
         contentType: doc.contentType,
         path: doc.path,
-        message: e.message,
+        message: (e as Error).message,
       });
       continue;
     }
@@ -193,8 +183,7 @@ export function simulate(config) {
         specificEntryId = specificEntryId.substring(0, 64);
       }
 
-      // Build fields
-      const fields = {};
+      const fields: EntryFields = {};
       if (transformedEntry.fields) {
         for (const [fieldName, fieldValue] of Object.entries(transformedEntry.fields)) {
           if (fieldValue && typeof fieldValue === 'object' && !Array.isArray(fieldValue)) {
@@ -287,19 +276,18 @@ export function simulate(config) {
         report.contentTypes[specificCtfType].entryCount++;
       }
 
-      // Find linked entries
-      const linkedEntryIds = [];
-      const linkedAssetIds = [];
+      const linkedEntryIds: string[] = [];
+      const linkedAssetIds: string[] = [];
       for (const [, fw] of Object.entries(fields)) {
-        const val = fw?.[baseLocale];
+        const val = fw?.[baseLocale] as any;
         if (val?.sys?.linkType === 'Entry') linkedEntryIds.push(val.sys.id);
         if (val?.sys?.linkType === 'Asset') linkedAssetIds.push(val.sys.id);
         if (Array.isArray(val)) {
           for (const item of val) {
             if (item?.sys?.linkType === 'Entry') linkedEntryIds.push(item.sys.id);
             if (item?.sys?.linkType === 'Asset') linkedAssetIds.push(item.sys.id);
-            if (item && typeof item === 'object' && !item.sys) {
-              for (const subVal of Object.values(item)) {
+            if (item && typeof item === 'object' && !(item as any).sys) {
+              for (const subVal of Object.values(item as Record<string, any>)) {
                 if (subVal?.sys?.linkType === 'Entry') linkedEntryIds.push(subVal.sys.id);
               }
             }
@@ -337,11 +325,11 @@ export function simulate(config) {
 
 // ─── Internal helpers ─────────────────────────────────────────────
 
-function transformGenericEntry(doc, locale, mapLocale) {
+function transformGenericEntry(doc: Document, locale: string, mapLocale: (l?: string) => string): TransformedEntry {
   const fields = doc.fields || doc.data || {};
   const contentType = doc.contentType;
 
-  const entry = {
+  const entry: TransformedEntry = {
     _metadata: {
       contentType,
       entryId: generateEntryId(contentType, `${doc.id || doc.path || contentType}-${locale}`),
@@ -366,29 +354,25 @@ function transformGenericEntry(doc, locale, mapLocale) {
   return entry;
 }
 
-function buildInternalName(doc, locale) {
+function buildInternalName(doc: Document, locale: string): string {
   const parts = doc.path?.split('/').filter(Boolean) || [];
   const component = parts[parts.length - 1] || doc.name || doc.contentType;
   return `${doc.contentType}-${component}-${locale}`.toLowerCase().substring(0, 200);
 }
 
-function transformFieldValue(value) {
+function transformFieldValue(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (typeof value !== 'object') return value;
   if (Array.isArray(value)) return value;
-  if (value.links?.resource?.href) return value;
-  if (value.value !== undefined && typeof value.value === 'string') return value.value;
-  if (Object.keys(value).length <= 5 &&
-      Object.values(value).every(v => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')) {
+  if ((value as Record<string, any>).links?.resource?.href) return value;
+  if ((value as Record<string, any>).value !== undefined && typeof (value as Record<string, any>).value === 'string') return (value as Record<string, any>).value;
+  if (Object.keys(value as object).length <= 5 &&
+      Object.values(value as object).every(v => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')) {
     return value;
   }
   return value;
 }
 
-/**
- * Lazy import to avoid circular dependencies.
- * Returns the transformGeneric function.
- */
 function await_import_transform() {
-  return { transformGeneric: transformGenericEntry };
+  return { transformGeneric: transformGenericEntry as (...args: any[]) => TransformedEntry };
 }

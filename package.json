@@ -3,16 +3,22 @@
   "version": "0.1.0",
   "description": "Local-only simulator for Contentful content models. Preview entries, validate schemas, and browse content offline — never connects to Contentful.",
   "type": "module",
-  "main": "src/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./cli": "./bin/cms-sim.js"
   },
   "bin": {
     "cms-sim": "./bin/cms-sim.js"
   },
   "scripts": {
+    "build": "tsc",
     "start": "node bin/cms-sim.js",
+    "pretest": "npm run build",
     "test": "node --test 'src/**/*.test.js' 'test/*.test.js'"
   },
   "keywords": [
@@ -44,9 +50,12 @@
   },
   "files": [
     "bin/",
-    "src/",
-    "examples/",
+    "dist/",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2"
+  }
 }

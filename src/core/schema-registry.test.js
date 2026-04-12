@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { SchemaRegistry } from './schema-registry.js';
+import { SchemaRegistry } from '../../dist/core/schema-registry.js';
 
 const blogPostDef = {
   id: 'blogPost',

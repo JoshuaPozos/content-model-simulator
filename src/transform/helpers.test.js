@@ -8,7 +8,7 @@ import {
   extractImageUrl,
   createLink,
   isLink,
-} from './helpers.js';
+} from '../../dist/transform/helpers.js';
 
 describe('simpleHash', () => {
   it('returns a deterministic hash string', () => {

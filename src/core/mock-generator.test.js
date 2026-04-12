@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateMockData } from './mock-generator.js';
+import { generateMockData } from '../../dist/core/mock-generator.js';
 
 const blogPostDef = {
   id: 'blogPost',

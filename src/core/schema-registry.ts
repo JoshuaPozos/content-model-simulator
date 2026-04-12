@@ -24,50 +24,37 @@
 
 import fs from 'fs';
 import path from 'path';
+import type { ContentTypeDefinition } from '../types.js';
 
 export class SchemaRegistry {
-  /** @type {Map<string, object>} */
-  #definitions = new Map();
+  #definitions = new Map<string, ContentTypeDefinition>();
 
-  /**
-   * Register a single content type definition.
-   * @param {object} definition
-   */
-  register(definition) {
+  register(definition: ContentTypeDefinition): void {
     if (!definition?.id) {
       throw new Error('Content type definition must have an "id" property');
     }
     this.#definitions.set(definition.id, definition);
   }
 
-  /**
-   * Register multiple content type definitions.
-   * @param {Array<object>|object} definitions - Array of defs, or object keyed by CT id
-   */
-  registerAll(definitions) {
+  registerAll(definitions: ContentTypeDefinition[] | Record<string, ContentTypeDefinition>): void {
     if (Array.isArray(definitions)) {
       for (const def of definitions) {
         this.register(def);
       }
     } else if (typeof definitions === 'object') {
       for (const [id, def] of Object.entries(definitions)) {
-        this.register({ ...def, id: def.id || id });
+        this.register({ ...def, id: def.id || id } as ContentTypeDefinition);
       }
     }
   }
 
-  /**
-   * Load content type definitions from a directory of JS/JSON files.
-   * Each file should export a single definition or an object of definitions.
-   * @param {string} dirPath
-   */
-  async loadFromDirectory(dirPath) {
+  async loadFromDirectory(dirPath: string): Promise<void> {
     const resolvedDir = path.resolve(dirPath);
     if (!fs.existsSync(resolvedDir)) {
       throw new Error(`Schema directory does not exist: ${resolvedDir}`);
     }
 
-    const files = fs.readdirSync(resolvedDir).filter(f =>
+    const files = fs.readdirSync(resolvedDir).filter((f: string) =>
       f.endsWith('.js') || f.endsWith('.mjs') || f.endsWith('.json')
     );
 
@@ -84,73 +71,48 @@ export class SchemaRegistry {
             this.registerAll(content);
           }
         } else {
-          const mod = await import(`file://${filePath}`);
-          const exported = mod.default || mod;
+          const mod = await import(`file://${filePath}`) as Record<string, unknown>;
+          const exported = (mod.default || mod) as Record<string, unknown>;
           if (Array.isArray(exported)) {
-            this.registerAll(exported);
-          } else if (exported.id && exported.fields) {
-            this.register(exported);
+            this.registerAll(exported as unknown as ContentTypeDefinition[]);
+          } else if ((exported as any).id && (exported as any).fields) {
+            this.register(exported as unknown as ContentTypeDefinition);
           } else {
             // Object with named exports — each value is a definition
             for (const val of Object.values(exported)) {
-              if (val?.id && val?.fields) {
-                this.register(val);
+              if ((val as any)?.id && (val as any)?.fields) {
+                this.register(val as ContentTypeDefinition);
               }
             }
           }
         }
       } catch (e) {
-        throw new Error(`Failed to load schema from ${filePath}: ${e.message}`);
+        throw new Error(`Failed to load schema from ${filePath}: ${(e as Error).message}`);
       }
     }
   }
 
-  /**
-   * Get a definition by content type ID.
-   * @param {string} ctId
-   * @returns {object|null}
-   */
-  get(ctId) {
+  get(ctId: string): ContentTypeDefinition | null {
     return this.#definitions.get(ctId) || null;
   }
 
-  /**
-   * Get all definitions as a plain object.
-   * @returns {object}
-   */
-  getAll() {
+  getAll(): Record<string, ContentTypeDefinition> {
     return Object.fromEntries(this.#definitions);
   }
 
-  /**
-   * Get all registered content type IDs.
-   * @returns {string[]}
-   */
-  getAllIds() {
+  getAllIds(): string[] {
     return [...this.#definitions.keys()];
   }
 
-  /**
-   * Check if a content type is registered.
-   * @param {string} ctId
-   * @returns {boolean}
-   */
-  has(ctId) {
+  has(ctId: string): boolean {
     return this.#definitions.has(ctId);
   }
 
-  /**
-   * Get the number of registered definitions.
-   * @returns {number}
-   */
-  get size() {
+  get size(): number {
     return this.#definitions.size;
   }
 
-  /**
-   * Clear all definitions.
-   */
-  clear() {
+  clear(): void {
     this.#definitions.clear();
   }
 }

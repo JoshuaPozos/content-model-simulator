@@ -4,6 +4,47 @@
  * Everything users need when requiring the package programmatically.
  */
 
+// ── Types ────────────────────────────────────────────────────────
+export type {
+  ContentfulFieldType,
+  LinkType,
+  ContentTypeFieldItems,
+  Validation,
+  ContentTypeField,
+  ContentTypeDefinition,
+  Document,
+  ContentLink,
+  EntryFields,
+  Entry,
+  Asset,
+  ReportContentType,
+  PageEntry,
+  SimulationReport,
+  ReportIssue,
+  ReportStats,
+  TransformFunction,
+  TransformOptions,
+  TransformedEntry,
+  SimulateConfig,
+  SimulateOptions,
+  FieldGroupConfig,
+  SchemaLike,
+  TransformerLike,
+  PullOptions,
+  PullResult,
+  MockDataOptions,
+  MockDataResult,
+  AppConfig,
+  ReadOptions,
+  WriteOptions,
+  WriteResult,
+  ExtractAssetsOptions,
+  ExtractAssetsResult,
+  ExtractNestedOptions,
+  ExtractNestedResult,
+  TerminalColors,
+} from './types.js';
+
 // ── Core ─────────────────────────────────────────────────────────
 export { simulate } from './core/simulator.js';
 export { readDocuments, readDocumentsSync, filterByContentType, filterByLocale, filterByPath, getDocumentStats } from './core/reader.js';

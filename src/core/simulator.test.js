@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { simulate } from './simulator.js';
-import { SchemaRegistry } from './schema-registry.js';
+import { simulate } from '../../dist/core/simulator.js';
+import { SchemaRegistry } from '../../dist/core/schema-registry.js';
 
 const blogPostDef = {
   id: 'blogPost',

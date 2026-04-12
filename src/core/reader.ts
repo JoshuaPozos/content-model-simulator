@@ -20,16 +20,9 @@
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
+import type { Document, ReadOptions } from '../types.js';
 
-/**
- * Read documents from a source. Auto-detects format if not specified.
- * @param {string} inputPath - Path to NDJSON file, JSON file, or directory
- * @param {object} [options]
- * @param {'ndjson'|'json-array'|'json-dir'|'auto'} [options.format='auto']
- * @param {function} [options.transform] - Optional transform function applied to each raw document
- * @returns {Promise<Array<object>>} Array of normalized documents
- */
-export async function readDocuments(inputPath, options = {}) {
+export async function readDocuments(inputPath: string, options: ReadOptions = {}): Promise<Document[]> {
   const { format = 'auto', transform } = options;
   const resolvedPath = path.resolve(inputPath);
 
@@ -39,7 +32,7 @@ export async function readDocuments(inputPath, options = {}) {
 
   const detectedFormat = format === 'auto' ? detectFormat(resolvedPath) : format;
 
-  let documents;
+  let documents: Document[];
   switch (detectedFormat) {
     case 'ndjson':
       documents = await readNDJSON(resolvedPath);
@@ -61,13 +54,7 @@ export async function readDocuments(inputPath, options = {}) {
   return documents;
 }
 
-/**
- * Read all documents synchronously (for in-memory operations).
- * @param {string} inputPath
- * @param {object} [options]
- * @returns {Array<object>}
- */
-export function readDocumentsSync(inputPath, options = {}) {
+export function readDocumentsSync(inputPath: string, options: ReadOptions = {}): Document[] {
   const { format = 'auto', transform } = options;
   const resolvedPath = path.resolve(inputPath);
 
@@ -77,7 +64,7 @@ export function readDocumentsSync(inputPath, options = {}) {
 
   const detectedFormat = format === 'auto' ? detectFormat(resolvedPath) : format;
 
-  let documents;
+  let documents: Document[];
   switch (detectedFormat) {
     case 'ndjson':
       documents = readNDJSONSync(resolvedPath);
@@ -99,32 +86,20 @@ export function readDocumentsSync(inputPath, options = {}) {
   return documents;
 }
 
-/**
- * Filter documents by content type
- */
-export function filterByContentType(documents, contentType) {
+export function filterByContentType(documents: Document[], contentType: string): Document[] {
   return documents.filter(d => d.contentType === contentType);
 }
 
-/**
- * Filter documents by locale
- */
-export function filterByLocale(documents, locale) {
+export function filterByLocale(documents: Document[], locale: string): Document[] {
   return documents.filter(d => d.locale === locale);
 }
 
-/**
- * Filter documents by path pattern (regex)
- */
-export function filterByPath(documents, pattern) {
+export function filterByPath(documents: Document[], pattern: string): Document[] {
   const regex = new RegExp(pattern);
   return documents.filter(d => d.path && regex.test(d.path));
 }
 
-/**
- * Get document statistics
- */
-export function getDocumentStats(documents) {
+export function getDocumentStats(documents: Document[]) {
   const contentTypes = new Set();
   const locales = new Set();
   for (const doc of documents) {
@@ -142,7 +117,7 @@ export function getDocumentStats(documents) {
 
 // ─── Internal Readers ──────────────────────────────────────────────
 
-function detectFormat(filePath) {
+function detectFormat(filePath: string): 'ndjson' | 'json-array' | 'json-dir' {
   const stat = fs.statSync(filePath);
   if (stat.isDirectory()) return 'json-dir';
   const ext = path.extname(filePath).toLowerCase();
@@ -157,8 +132,8 @@ function detectFormat(filePath) {
   return 'ndjson';
 }
 
-async function readNDJSON(filePath) {
-  const documents = [];
+async function readNDJSON(filePath: string): Promise<Document[]> {
+  const documents: Document[] = [];
   const fileStream = fs.createReadStream(filePath, { encoding: 'utf-8' });
   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
@@ -175,9 +150,9 @@ async function readNDJSON(filePath) {
   return documents;
 }
 
-function readNDJSONSync(filePath) {
+function readNDJSONSync(filePath: string): Document[] {
   const content = fs.readFileSync(filePath, 'utf-8');
-  const documents = [];
+  const documents: Document[] = [];
   for (const line of content.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -190,7 +165,7 @@ function readNDJSONSync(filePath) {
   return documents;
 }
 
-function readJSONArray(filePath) {
+function readJSONArray(filePath: string): Document[] {
   const content = fs.readFileSync(filePath, 'utf-8');
   const parsed = JSON.parse(content);
   if (!Array.isArray(parsed)) {
@@ -199,9 +174,9 @@ function readJSONArray(filePath) {
   return parsed;
 }
 
-function readJSONDirectory(dirPath) {
-  const documents = [];
-  const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.json'));
+function readJSONDirectory(dirPath: string): Document[] {
+  const documents: Document[] = [];
+  const files = fs.readdirSync(dirPath).filter((f: string) => f.endsWith('.json'));
   for (const file of files.sort()) {
     const filePath = path.join(dirPath, file);
     try {

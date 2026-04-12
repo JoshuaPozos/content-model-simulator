@@ -10,7 +10,7 @@ import {
   filterByLocale,
   filterByPath,
   getDocumentStats,
-} from './reader.js';
+} from '../../dist/core/reader.js';
 
 function createTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'cms-sim-reader-'));

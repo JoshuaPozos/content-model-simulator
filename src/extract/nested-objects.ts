@@ -11,23 +11,13 @@
  */
 
 import { generateEntryId, extractSelectKey, simpleHash } from '../transform/helpers.js';
+import type { ContentTypeDefinition, Entry, EntryFields, ExtractNestedOptions, ExtractNestedResult, SchemaLike } from '../types.js';
 
-/**
- * Extract nested objects from entry fields based on a configuration map.
- *
- * @param {object} fields - Entry fields { fieldName: { locale: value } }
- * @param {string} parentContentType
- * @param {object} options
- * @param {string} options.locale
- * @param {string} options.baseLocale
- * @param {string} options.parentEntryId
- * @param {string} options.parentPath
- * @param {Map<string, string>} options.urlToAssetId
- * @param {object} options.fieldGroupMap - { parentCT: { fieldId: { contentType, multiple } } }
- * @param {object} options.schemas - Schema registry or plain object of definitions
- * @returns {{ entries: Array<object>, stats: { extracted: number, fields: number } }}
- */
-export function extractNestedObjects(fields, parentContentType, options) {
+export function extractNestedObjects(
+  fields: EntryFields,
+  parentContentType: string,
+  options: ExtractNestedOptions,
+): ExtractNestedResult {
   const {
     locale,
     baseLocale,
@@ -38,7 +28,7 @@ export function extractNestedObjects(fields, parentContentType, options) {
     schemas = {},
   } = options;
 
-  const entries = [];
+  const entries: Entry[] = [];
   let extractedCount = 0;
   let fieldsProcessed = 0;
 
@@ -55,14 +45,16 @@ export function extractNestedObjects(fields, parentContentType, options) {
     fieldsProcessed++;
     const targetContentType = config.contentType;
     const isMultiple = config.multiple;
-    const getSchema = typeof schemas.get === 'function' ? schemas.get.bind(schemas) : (id) => schemas[id];
+    const getSchema = typeof (schemas as SchemaLike).get === 'function'
+      ? (schemas as SchemaLike).get!.bind(schemas)
+      : (id: string) => (schemas as Record<string, ContentTypeDefinition>)[id];
     const ctDef = getSchema(targetContentType);
 
     if (isMultiple && Array.isArray(rawValue)) {
       const links = [];
       for (let i = 0; i < rawValue.length; i++) {
-        const item = rawValue[i];
-        if (!item || typeof item !== 'object' || item.sys) continue;
+        const item = rawValue[i] as Record<string, unknown>;
+        if (!item || typeof item !== 'object' || (item as any).sys) continue;
         const result = createNestedEntry(item, targetContentType, {
           index: i, locale, baseLocale, parentEntryId, parentPath,
           urlToAssetId, ctDef,
@@ -72,8 +64,8 @@ export function extractNestedObjects(fields, parentContentType, options) {
         extractedCount++;
       }
       fields[fieldId] = { [baseLocale]: links };
-    } else if (!isMultiple && typeof rawValue === 'object' && !Array.isArray(rawValue) && !rawValue.sys) {
-      const result = createNestedEntry(rawValue, targetContentType, {
+    } else if (!isMultiple && typeof rawValue === 'object' && !Array.isArray(rawValue) && !(rawValue as any).sys) {
+      const result = createNestedEntry(rawValue as Record<string, unknown>, targetContentType, {
         index: 0, locale, baseLocale, parentEntryId, parentPath,
         urlToAssetId, ctDef,
       });
@@ -88,10 +80,19 @@ export function extractNestedObjects(fields, parentContentType, options) {
   return { entries, stats: { extracted: extractedCount, fields: fieldsProcessed } };
 }
 
-/**
- * Create a single entry from a nested object using its CT definition.
- */
-function createNestedEntry(rawItem, contentType, options) {
+function createNestedEntry(
+  rawItem: Record<string, unknown>,
+  contentType: string,
+  options: {
+    index: number;
+    locale: string;
+    baseLocale: string;
+    parentEntryId: string;
+    parentPath: string;
+    urlToAssetId: Map<string, string>;
+    ctDef: ContentTypeDefinition | null | undefined;
+  },
+): { entry: Entry; link: { sys: { type: 'Link'; linkType: 'Entry'; id: string } } } {
   const { index, locale, baseLocale, parentEntryId, parentPath, urlToAssetId, ctDef } = options;
 
   const prefix = contentType.substring(0, 4);
@@ -100,9 +101,9 @@ function createNestedEntry(rawItem, contentType, options) {
   const maxParent = 64 - prefix.length - 1 - suffix.length;
   const entryId = `${prefix}_${parentClean.substring(0, maxParent)}${suffix}`;
 
-  const linkedAssetIds = [];
-  const linkedEntryIds = [];
-  const entryFields = {
+  const linkedAssetIds: string[] = [];
+  const linkedEntryIds: string[] = [];
+  const entryFields: EntryFields = {
     internalName: { [baseLocale]: `${contentType}-${index}-${locale}`.toLowerCase().substring(0, 200) }
   };
 
@@ -114,18 +115,18 @@ function createNestedEntry(rawItem, contentType, options) {
 
       if (fieldDef.type === 'Link' && fieldDef.linkType === 'Asset') {
         // Resolve image to asset link
-        const url = rawVal?.links?.resource?.href;
+        const url = (rawVal as Record<string, any>)?.links?.resource?.href;
         if (url && urlToAssetId.has(url)) {
-          const assetId = urlToAssetId.get(url);
+          const assetId = urlToAssetId.get(url)!;
           entryFields[fieldDef.id] = { [baseLocale]: { sys: { type: 'Link', linkType: 'Asset', id: assetId } } };
           linkedAssetIds.push(assetId);
         } else {
           entryFields[fieldDef.id] = { [baseLocale]: rawVal };
         }
       } else if (fieldDef.type === 'Link' && fieldDef.linkType === 'Entry') {
-        if (rawVal?.sys?.id) {
+        if ((rawVal as any)?.sys?.id) {
           entryFields[fieldDef.id] = { [baseLocale]: rawVal };
-          linkedEntryIds.push(rawVal.sys.id);
+          linkedEntryIds.push((rawVal as any).sys.id);
         } else {
           entryFields[fieldDef.id] = { [baseLocale]: rawVal };
         }
@@ -146,12 +147,12 @@ function createNestedEntry(rawItem, contentType, options) {
     }
   }
 
-  const entry = {
+  const entry: Entry = {
     id: entryId,
     contentType,
     locale,
-    sourcePath: parentPath,
     sourceType: contentType,
+    sourcePath: parentPath,
     fields: entryFields,
     linkedEntryIds,
     linkedAssetIds,

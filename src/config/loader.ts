@@ -20,6 +20,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import type { AppConfig } from '../types.js';
 
 const CONFIG_FILENAMES = [
   'cms-sim.config.json',
@@ -27,13 +28,7 @@ const CONFIG_FILENAMES = [
   'content-model-simulator.config.json',
 ];
 
-/**
- * Auto-discover and load a config file from the given directory.
- *
- * @param {string} [dir=process.cwd()] - Directory to search
- * @returns {object|null} Parsed config or null if not found
- */
-export function loadConfig(dir = process.cwd()) {
+export function loadConfig(dir: string = process.cwd()): AppConfig | null {
   for (const name of CONFIG_FILENAMES) {
     const filePath = resolve(dir, name);
     if (existsSync(filePath)) {
@@ -47,13 +42,7 @@ export function loadConfig(dir = process.cwd()) {
   return null;
 }
 
-/**
- * Load a specific config file by path.
- *
- * @param {string} filePath - Absolute or relative path to config file
- * @returns {object} Parsed config
- */
-export function loadConfigFile(filePath) {
+export function loadConfigFile(filePath: string): AppConfig {
   const abs = resolve(filePath);
   if (!existsSync(abs)) throw new Error(`Config file not found: ${abs}`);
   const raw = readFileSync(abs, 'utf-8');
@@ -63,14 +52,7 @@ export function loadConfigFile(filePath) {
   return config;
 }
 
-/**
- * Merge CLI args over config file values (CLI takes precedence).
- *
- * @param {object} config - Config from file
- * @param {object} cliArgs - Parsed CLI arguments
- * @returns {object} Merged options
- */
-export function mergeConfig(config, cliArgs) {
+export function mergeConfig(config: AppConfig, cliArgs: Record<string, any>): AppConfig {
   return {
     input:       cliArgs.input ?? config.input ?? null,
     schemas:     cliArgs.schemas ?? config.schemas ?? null,

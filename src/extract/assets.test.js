@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractAssets, linkAssets } from './assets.js';
+import { extractAssets, linkAssets } from '../../dist/extract/assets.js';
 
 describe('extractAssets', () => {
   it('extracts assets from documents with image objects', () => {

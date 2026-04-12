@@ -11,16 +11,16 @@
 
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, join, basename, extname } from 'node:path';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 
-import { readDocuments } from '../src/core/reader.js';
-import { SchemaRegistry } from '../src/core/schema-registry.js';
-import { TransformerRegistry } from '../src/transform/transformer.js';
-import { simulate } from '../src/core/simulator.js';
-import { generateMockData } from '../src/core/mock-generator.js';
-import { generateContentBrowserHTML } from '../src/output/content-browser.js';
-import { generateModelGraphHTML } from '../src/output/model-graph.js';
-import { writeReport } from '../src/output/json-writer.js';
+import { readDocuments } from '../dist/core/reader.js';
+import { SchemaRegistry } from '../dist/core/schema-registry.js';
+import { TransformerRegistry } from '../dist/transform/transformer.js';
+import { simulate } from '../dist/core/simulator.js';
+import { generateMockData } from '../dist/core/mock-generator.js';
+import { generateContentBrowserHTML } from '../dist/output/content-browser.js';
+import { generateModelGraphHTML } from '../dist/output/model-graph.js';
+import { writeReport } from '../dist/output/json-writer.js';
 
 // ── Terminal colours ─────────────────────────────────────────────
 const c = {
@@ -296,8 +296,6 @@ async function main() {
       locales,
       localeMap,
       fieldGroupMap: config.fieldGroupMap || null,
-      isAsset: config.isAsset ? new Function('return ' + config.isAsset)() : undefined,
-      getAssetUrl: config.getAssetUrl ? new Function('return ' + config.getAssetUrl)() : undefined,
       verbose: args.verbose,
     },
   });
@@ -375,7 +373,7 @@ async function main() {
     const cmd = process.platform === 'darwin' ? 'open'
       : process.platform === 'win32' ? 'start'
       : 'xdg-open';
-    exec(`${cmd} "${browserPath}"`);
+    execFile(cmd, [browserPath], () => {});
     console.log(`\n${c.cyan}Opening content browser...${c.reset}`);
   }
 
@@ -423,7 +421,7 @@ async function pullMain(argv) {
   console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
   console.log(`${c.dim}Downloading content model from Contentful (read-only)...${c.reset}\n`);
 
-  const { pull } = await import('../src/contentful/pull.js');
+  const { pull } = await import('../dist/contentful/pull.js');
 
   const result = await pull({
     spaceId: args.spaceId,

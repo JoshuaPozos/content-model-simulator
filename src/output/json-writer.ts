@@ -11,19 +11,11 @@
 
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import type { SimulationReport, WriteOptions, WriteResult } from '../types.js';
 
-/**
- * Write the full simulation report to the given output directory.
- *
- * @param {object} report - Simulation report object
- * @param {string} outDir - Destination directory (will be created if missing)
- * @param {object} [options]
- * @param {boolean} [options.pretty=true] - Pretty-print JSON
- * @param {boolean} [options.splitEntries=true] - Write one file per CT under entries/
- */
-export function writeReport(report, outDir, options = {}) {
+export function writeReport(report: SimulationReport, outDir: string, options: WriteOptions = {}): WriteResult {
   const { pretty = true, splitEntries = true } = options;
-  const fmt = (obj) => JSON.stringify(obj, null, pretty ? 2 : 0);
+  const fmt = (obj: unknown) => JSON.stringify(obj, null, pretty ? 2 : 0);
 
   // Ensure root dir
   if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
@@ -33,7 +25,8 @@ export function writeReport(report, outDir, options = {}) {
   if (!existsSync(ctDir)) mkdirSync(ctDir, { recursive: true });
 
   for (const [ctId, ct] of Object.entries(report.contentTypes)) {
-    writeFileSync(join(ctDir, `${ctId}.json`), fmt(ct), 'utf-8');
+    const safeName = ctId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    writeFileSync(join(ctDir, `${safeName}.json`), fmt(ct), 'utf-8');
   }
 
   // ── Entries ───────────────────────────────────────────────
@@ -41,8 +34,7 @@ export function writeReport(report, outDir, options = {}) {
     const entriesDir = join(outDir, 'entries');
     if (!existsSync(entriesDir)) mkdirSync(entriesDir, { recursive: true });
 
-    // Group by CT
-    const byCt = {};
+    const byCt: Record<string, typeof report.entries> = {};
     for (const entry of report.entries) {
       if (!byCt[entry.contentType]) byCt[entry.contentType] = [];
       byCt[entry.contentType].push(entry);
@@ -86,7 +78,7 @@ export function writeReport(report, outDir, options = {}) {
   };
 }
 
-function countFiles(report, splitEntries) {
+function countFiles(report: SimulationReport, splitEntries: boolean): number {
   const ctFiles = Object.keys(report.contentTypes).length;
   const entryFiles = splitEntries
     ? new Set(report.entries.map(e => e.contentType)).size

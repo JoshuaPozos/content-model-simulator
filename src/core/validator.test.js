@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateEntry, validateAll } from './validator.js';
+import { validateEntry, validateAll } from '../../dist/core/validator.js';
 
 const blogPostDef = {
   id: 'blogPost',

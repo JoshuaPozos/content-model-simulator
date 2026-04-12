@@ -1,25 +1,11 @@
 /**
  * Content Model Simulator — Content Browser HTML Generator
- *
- * Generates a single-file HTML application that provides a
- * CMS-style UI for browsing simulated entries.
- *
- * Features:
- * - Split panel: filterable list + entry detail
- * - Smart field rendering (links, assets, arrays, objects, HTML, selects)
- * - Breadcrumb navigation for linked entries
- * - Content type and locale filters
- * - Text search
  */
 
-/**
- * Generate the Content Browser HTML from a report object.
- *
- * @param {object} report - Simulation report
- * @returns {string} Complete HTML document
- */
-export function generateContentBrowserHTML(report) {
-  const allEntries = [];
+import type { SimulationReport, Entry } from '../types.js';
+
+export function generateContentBrowserHTML(report: SimulationReport): string {
+  const allEntries: Array<Record<string, any>> = [];
 
   // Component entries
   for (const e of report.entries) {
@@ -45,8 +31,8 @@ export function generateContentBrowserHTML(report) {
     const fields = {
       internalName: { [firstLocale]: pe.id },
       title: { [firstLocale]: pe.title },
-      slug: {},
-      sections: {},
+      slug: {} as Record<string, any>,
+      sections: {} as Record<string, any>,
     };
     for (const loc of report.locales) {
       fields.slug[loc] = pe.slug;
@@ -70,10 +56,10 @@ export function generateContentBrowserHTML(report) {
 
   const ctDefs = report.contentTypes;
 
-  function resolveDisplayName(entry) {
+  function resolveDisplayName(entry: Entry): string {
     const f = entry.fields;
     const loc = entry.locale || Object.keys(f?.internalName || {})[0] || 'en';
-    return f?.internalName?.[loc] || f?.title?.[loc] || f?.name?.[loc] || f?.lblTitle?.[loc] || entry.id;
+    return (f?.internalName?.[loc] || f?.title?.[loc] || f?.name?.[loc] || (f as any)?.lblTitle?.[loc] || entry.id) as string;
   }
 
   const browserData = {
@@ -183,7 +169,7 @@ ${BROWSER_JS}
 </html>`;
 }
 
-function escapeHtml(s) {
+function escapeHtml(s: unknown): string {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -519,7 +505,7 @@ function renderFieldValue(val, fDef, locale) {
 
   const str = String(val);
   if (str === '') return '<div class="field-value empty">Empty string</div>';
-  if (/<[a-z][\\s>]/.test(str)) return '<div class="field-value"><div class="html-preview">' + str + '</div><div style="font-size:0.65rem;color:var(--gray-400);margin-top:4px">' + str.length + ' characters</div></div>';
+  if (/<[a-z][\\s>]/.test(str)) return '<div class="field-value"><div class="html-preview">' + esc(str) + '</div><div style="font-size:0.65rem;color:var(--gray-400);margin-top:4px">' + str.length + ' characters</div></div>';
   if (str.startsWith('http://') || str.startsWith('https://')) return '<div class="field-value"><a href="' + esc(str) + '" target="_blank" style="color:var(--blue);font-size:0.82rem;word-break:break-all">' + esc(str) + '</a></div>';
   const charInfo = str.length > 20 ? '<div style="font-size:0.65rem;color:var(--gray-400);margin-top:2px">' + str.length + ' characters</div>' : '';
   return '<div class="field-value">' + esc(str) + charInfo + '</div>';
