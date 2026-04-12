@@ -4,7 +4,12 @@
 
 import type { SimulationReport, Entry } from '../types.js';
 
-export function generateContentBrowserHTML(report: SimulationReport): string {
+export interface BrowserHTMLOptions {
+  customCSS?: string;
+  customHead?: string;
+}
+
+export function generateContentBrowserHTML(report: SimulationReport, options: BrowserHTMLOptions = {}): string {
   const allEntries: Array<Record<string, any>> = [];
 
   // Component entries
@@ -106,7 +111,9 @@ export function generateContentBrowserHTML(report: SimulationReport): string {
 <title>Content Browser: ${escapeHtml(report.page)}</title>
 <style>
 ${BROWSER_CSS}
+${options.customCSS ? `\n/* ── Custom CSS ──────────────── */\n${options.customCSS}` : ''}
 </style>
+${options.customHead || ''}
 </head>
 <body>
 

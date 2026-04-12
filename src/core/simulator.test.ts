@@ -117,7 +117,7 @@ describe('simulate', () => {
 
   it('computes correct stats', () => {
     const report = simulate({
-      documents: [makeDoc(), makeDoc({ id: 'doc2' })],
+      documents: [makeDoc(), makeDoc({ id: 'doc2', path: '/blog/world' })],
       schemas: { blogPost: blogPostDef },
     });
 
@@ -385,5 +385,56 @@ describe('locale inheritance', () => {
     assert.ok(warning.message.includes('fr'));
     assert.ok(warning.message.includes('en'));
     assert.equal(warning.contentType, 'article');
+  });
+});
+
+// ── Entry deduplication ──────────────────────────────────────────
+
+describe('entry deduplication', () => {
+  it('removes duplicate entries with same id+locale', () => {
+    // Two docs with same path+locale will generate the same entry ID
+    const docs = [
+      makeDoc({ id: 'dup1', path: '/blog/same' }),
+      makeDoc({ id: 'dup2', path: '/blog/same' }),
+    ];
+    const report = simulate({
+      documents: docs,
+      schemas: { blogPost: blogPostDef },
+    });
+
+    // Should only have 1 entry (the first one wins)
+    assert.equal(report.entries.length, 1);
+    const dupeWarning = report.warnings.find(w => w.type === 'DUPLICATE_ENTRY_REMOVED');
+    assert.ok(dupeWarning, 'Expected DUPLICATE_ENTRY_REMOVED warning');
+    assert.ok(dupeWarning.message.includes('1'));
+  });
+
+  it('keeps entries with different locales', () => {
+    const docs = [
+      makeDoc({ id: 'e1', path: '/blog/a', locale: 'en' }),
+      makeDoc({ id: 'e1', path: '/blog/a', locale: 'fr' }),
+    ];
+    const report = simulate({
+      documents: docs,
+      schemas: { blogPost: blogPostDef },
+      options: { locales: ['en', 'fr'] },
+    });
+
+    assert.equal(report.entries.length, 2);
+    const dupeWarning = report.warnings.find(w => w.type === 'DUPLICATE_ENTRY_REMOVED');
+    assert.equal(dupeWarning, undefined);
+  });
+
+  it('keeps entries with different paths', () => {
+    const docs = [
+      makeDoc({ id: 'd1', path: '/blog/a' }),
+      makeDoc({ id: 'd2', path: '/blog/b' }),
+    ];
+    const report = simulate({
+      documents: docs,
+      schemas: { blogPost: blogPostDef },
+    });
+
+    assert.equal(report.entries.length, 2);
   });
 });

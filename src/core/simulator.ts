@@ -352,6 +352,28 @@ export function simulate(
     }
   }
 
+  // ─── Entry deduplication ─────────────────────────────────────────
+  // Remove duplicate entries based on composite key (id + locale).
+  // This handles cross-locale duplicates from data sources that emit
+  // the same entry multiple times.
+  {
+    const seen = new Set<string>();
+    const originalCount = report.entries.length;
+    report.entries = report.entries.filter(e => {
+      const key = `${e.id}::${e.locale}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const dupeCount = originalCount - report.entries.length;
+    if (dupeCount > 0) {
+      report.warnings.push({
+        type: 'DUPLICATE_ENTRY_REMOVED',
+        message: `Removed ${dupeCount} duplicate ${dupeCount === 1 ? 'entry' : 'entries'} (same id + locale)`,
+      });
+    }
+  }
+
   // ─── Locale inheritance ──────────────────────────────────────────
   // For fields marked localized: false in the schema, ensure the base locale
   // value is copied from the base-locale entry to other-locale entries for

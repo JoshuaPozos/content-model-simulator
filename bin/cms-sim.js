@@ -35,6 +35,7 @@ function parseArgs(argv) {
     input: null,
     schemas: null,
     transforms: null,
+    plugins: null,
     config: null,
     output: null,
     name: null,
@@ -42,6 +43,8 @@ function parseArgs(argv) {
     locales: null,
     localeMap: null,
     entriesPerType: null,
+    templateCSS: null,
+    templateHead: null,
     format: 'ndjson',
     open: false,
     watch: false,
@@ -66,6 +69,7 @@ function parseArgs(argv) {
       case 'input': args.input = val; break;
       case 'schemas': args.schemas = val; break;
       case 'transforms': args.transforms = val; break;
+      case 'plugins': args.plugins = val; break;
       case 'config': args.config = val; break;
       case 'output': args.output = val; break;
       case 'name': args.name = val; break;
@@ -73,6 +77,8 @@ function parseArgs(argv) {
       case 'locales': args.locales = val; break;
       case 'locale-map': args.localeMap = val; break;
       case 'entries-per-type': args.entriesPerType = parseInt(val, 10) || null; break;
+      case 'template-css': args.templateCSS = val; break;
+      case 'template-head': args.templateHead = val; break;
       case 'format': args.format = val; break;
     }
   }
@@ -107,6 +113,7 @@ ${c.cyan}DATA SOURCE (optional):${c.reset}
 
 ${c.cyan}OPTIONS:${c.reset}
   --transforms=<dir>    Directory with custom transformer modules
+  --plugins=<dir>       Plugin directory (auto-discovers schemas/, transforms/, *.js setup files)
   --config=<file>       Configuration file (JSON)
   --output=<dir>        Custom output directory (default: ./output/<name>_<timestamp>)
   --name=<string>       Project name (default: derived from input or schemas dir)
@@ -114,6 +121,8 @@ ${c.cyan}OPTIONS:${c.reset}
   --locales=<list>      Comma-separated locale codes (default: base locale only)
   --locale-map=<file>   JSON file mapping source → target locale codes
   --entries-per-type=<n> Mock entries per content type (default: 3, only without --input)
+  --template-css=<file> Custom CSS file to inject into HTML output
+  --template-head=<file> Custom HTML to inject into <head> (e.g. fonts, meta tags)
   --format=<fmt>        Input format: ndjson, json, dir (default: auto-detect)
   --json                Write JSON output only (skip HTML)
   --open                Auto-open HTML report in browser
@@ -276,6 +285,55 @@ async function runSimulation(args) {
     }
   }
 
+  // ── Step 3b: Load plugins ──────────────────────────────────
+  if (args.plugins) {
+    const pluginsPath = resolve(args.plugins);
+    if (!existsSync(pluginsPath)) {
+      console.error(`${c.red}Error: Plugins directory not found: ${pluginsPath}${c.reset}`);
+      process.exit(1);
+    }
+
+    const { readdirSync } = await import('node:fs');
+    let pluginCount = 0;
+
+    // Auto-discover schemas/ subdirectory
+    const pluginSchemas = join(pluginsPath, 'schemas');
+    if (existsSync(pluginSchemas)) {
+      await schemas.loadFromDirectory(pluginSchemas);
+      pluginCount++;
+      if (args.verbose) console.log(`${c.dim}Plugin: loaded schemas from ${pluginSchemas}${c.reset}`);
+    }
+
+    // Auto-discover transforms/ subdirectory
+    const pluginTransforms = join(pluginsPath, 'transforms');
+    if (existsSync(pluginTransforms)) {
+      const tFiles = readdirSync(pluginTransforms).filter(f => /\.(js|mjs)$/.test(f));
+      for (const file of tFiles) {
+        const mod = await import(join(pluginTransforms, file));
+        if (typeof mod.register === 'function') {
+          mod.register(transformers);
+        }
+      }
+      pluginCount++;
+      if (args.verbose) console.log(`${c.dim}Plugin: loaded ${tFiles.length} transform(s) from ${pluginTransforms}${c.reset}`);
+    }
+
+    // Load root-level .js files with setup() function
+    const rootFiles = readdirSync(pluginsPath).filter(f => /\.(js|mjs)$/.test(f));
+    for (const file of rootFiles) {
+      const mod = await import(join(pluginsPath, file));
+      if (typeof mod.setup === 'function') {
+        await mod.setup({ schemas, transformers });
+        pluginCount++;
+        if (args.verbose) console.log(`${c.dim}Plugin: ${file} setup() called${c.reset}`);
+      }
+    }
+
+    if (pluginCount > 0) {
+      console.log(`${c.green}✓${c.reset} Loaded plugins from ${c.bold}${args.plugins}${c.reset}\n`);
+    }
+  }
+
   // ── Step 4: Locale map ──────────────────────────────────────
   let localeMap = config.localeMap || null;
   if (args.localeMap) {
@@ -356,8 +414,19 @@ async function runSimulation(args) {
   // HTML output (unless --json)
   let browserPath, graphPath;
   if (!args.json) {
-    let browserHTML = generateContentBrowserHTML(report);
-    let graphHTML = generateModelGraphHTML(report);
+    const htmlOpts = {};
+    if (args.templateCSS) {
+      const cssPath = resolve(args.templateCSS);
+      if (existsSync(cssPath)) htmlOpts.customCSS = readFileSync(cssPath, 'utf-8');
+      else console.log(`${c.yellow}⚠ --template-css file not found: ${cssPath}${c.reset}`);
+    }
+    if (args.templateHead) {
+      const headPath = resolve(args.templateHead);
+      if (existsSync(headPath)) htmlOpts.customHead = readFileSync(headPath, 'utf-8');
+      else console.log(`${c.yellow}⚠ --template-head file not found: ${headPath}${c.reset}`);
+    }
+    let browserHTML = generateContentBrowserHTML(report, htmlOpts);
+    let graphHTML = generateModelGraphHTML(report, htmlOpts);
 
     // Inject auto-reload script when in watch mode
     if (args.watch) {
@@ -676,6 +745,7 @@ async function validateMain(argv) {
     schemas: null,
     input: null,
     transforms: null,
+    plugins: null,
     config: null,
     baseLocale: 'en',
     locales: null,
@@ -700,6 +770,7 @@ async function validateMain(argv) {
       case 'schemas': args.schemas = val; break;
       case 'input': args.input = val; break;
       case 'transforms': args.transforms = val; break;
+      case 'plugins': args.plugins = val; break;
       case 'config': args.config = val; break;
       case 'base-locale': args.baseLocale = val; break;
       case 'locales': args.locales = val; break;
@@ -722,6 +793,7 @@ ${c.cyan}REQUIRED:${c.reset}
 ${c.cyan}OPTIONS:${c.reset}
   --input=<path>        Source data file or directory
   --transforms=<dir>    Directory with custom transformer modules
+  --plugins=<dir>       Plugin directory (auto-discovers schemas/, transforms/, *.js setup files)
   --config=<file>       Configuration file (JSON)
   --base-locale=<code>  Base locale code (default: en)
   --locales=<list>      Comma-separated locale codes
@@ -804,6 +876,27 @@ ${c.cyan}EXAMPLES:${c.reset}
         if (typeof mod.register === 'function') {
           mod.register(transformers);
         }
+      }
+    }
+  }
+
+  // Load plugins
+  if (args.plugins) {
+    const pluginsPath = resolve(args.plugins);
+    if (existsSync(pluginsPath)) {
+      const { readdirSync } = await import('node:fs');
+      const pluginSchemas = join(pluginsPath, 'schemas');
+      if (existsSync(pluginSchemas)) await schemas.loadFromDirectory(pluginSchemas);
+      const pluginTransforms = join(pluginsPath, 'transforms');
+      if (existsSync(pluginTransforms)) {
+        for (const f of readdirSync(pluginTransforms).filter(f => /\.(js|mjs)$/.test(f))) {
+          const mod = await import(join(pluginTransforms, f));
+          if (typeof mod.register === 'function') mod.register(transformers);
+        }
+      }
+      for (const f of readdirSync(pluginsPath).filter(f => /\.(js|mjs)$/.test(f))) {
+        const mod = await import(join(pluginsPath, f));
+        if (typeof mod.setup === 'function') await mod.setup({ schemas, transformers });
       }
     }
   }

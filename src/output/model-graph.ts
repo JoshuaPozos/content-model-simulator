@@ -4,6 +4,11 @@
 
 import type { SimulationReport, Entry } from '../types.js';
 
+export interface GraphHTMLOptions {
+  customCSS?: string;
+  customHead?: string;
+}
+
 interface CTRelationship {
   from: string;
   to: string;
@@ -11,7 +16,7 @@ interface CTRelationship {
   count: number;
 }
 
-export function generateModelGraphHTML(report: SimulationReport): string {
+export function generateModelGraphHTML(report: SimulationReport, options: GraphHTMLOptions = {}): string {
   // Pre-compute CT→CT relationship edges
   const ctRelationships: CTRelationship[] = [];
   const relMap = new Map<string, CTRelationship>();
@@ -86,7 +91,9 @@ export function generateModelGraphHTML(report: SimulationReport): string {
 <title>Content Model: ${escapeHtml(report.page)}</title>
 <style>
 ${GRAPH_CSS}
+${options.customCSS ? `\n/* ── Custom CSS ──────────────── */\n${options.customCSS}` : ''}
 </style>
+${options.customHead || ''}
 </head>
 <body>
 

@@ -79,7 +79,9 @@ export { extractNestedObjects } from './extract/nested-objects.js';
 
 // ── Output ───────────────────────────────────────────────────────
 export { generateContentBrowserHTML } from './output/content-browser.js';
+export type { BrowserHTMLOptions } from './output/content-browser.js';
 export { generateModelGraphHTML } from './output/model-graph.js';
+export type { GraphHTMLOptions } from './output/model-graph.js';
 export { writeReport } from './output/json-writer.js';
 
 // ── Contentful ───────────────────────────────────────────────────
