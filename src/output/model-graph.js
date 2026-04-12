@@ -24,7 +24,10 @@ export function generateModelGraphHTML(report) {
   const ctRelationships = [];
   const relMap = new Map();
   const entryIdToEntry = new Map();
-  for (const e of report.entries) entryIdToEntry.set(e.id, e);
+  for (const e of report.entries) {
+    entryIdToEntry.set(e.id, e);
+    if (e.sourceId) entryIdToEntry.set(e.sourceId, e);
+  }
 
   for (const entry of report.entries) {
     for (const [fieldName, fw] of Object.entries(entry.fields)) {
