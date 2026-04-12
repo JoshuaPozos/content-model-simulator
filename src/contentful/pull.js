@@ -19,7 +19,7 @@ const CMA_BASE = 'https://api.contentful.com';
  * Fetch a paginated Contentful API endpoint, collecting all items.
  * Handles the `skip` / `limit` / `total` pagination pattern.
  */
-async function fetchAll(url, headers, { verbose = false } = {}) {
+async function fetchAll(url, headers, { verbose = false, maxItems = Infinity } = {}) {
   const items = [];
   let skip = 0;
   const limit = 100;
@@ -38,11 +38,12 @@ async function fetchAll(url, headers, { verbose = false } = {}) {
     const data = await res.json();
     items.push(...(data.items || []));
 
+    if (items.length >= maxItems) break;
     if (items.length >= (data.total || 0)) break;
     skip += limit;
   }
 
-  return items;
+  return items.slice(0, maxItems);
 }
 
 // ── Schema conversion ────────────────────────────────────────────
@@ -179,19 +180,14 @@ export async function pull(options) {
   if (includeEntries) {
     if (verbose) console.log('\nFetching entries...');
     const entriesRaw = await fetchAll(
-      `${envUrl}/entries?locale=*&limit=100`,
+      `${envUrl}/entries?locale=*`,
       headers,
-      { verbose },
+      { verbose, maxItems: maxEntries },
     );
 
-    // Respect maxEntries limit
-    const limited = entriesRaw.slice(0, maxEntries);
-    documents = limited.flatMap(entry => toDocuments(entry, locales));
+    documents = entriesRaw.flatMap(entry => toDocuments(entry, locales));
     if (verbose) {
-      console.log(`  Found ${entriesRaw.length} entries → ${documents.length} locale-documents`);
-      if (entriesRaw.length > maxEntries) {
-        console.log(`  (limited to first ${maxEntries} entries — use --max-entries to increase)`);
-      }
+      console.log(`  Fetched ${entriesRaw.length} entries → ${documents.length} locale-documents`);
     }
   }
 

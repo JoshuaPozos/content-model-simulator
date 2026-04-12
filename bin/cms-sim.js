@@ -450,10 +450,11 @@ async function pullMain(argv) {
   }
 
   console.log(`\n${c.cyan}Next steps:${c.reset}`);
+  const outBase = args.output.replace(/\/+$/, '');
   if (result.documents) {
-    console.log(`  cms-sim --schemas=${args.output}/schemas/ --input=${args.output}/data/entries.ndjson --open`);
+    console.log(`  cms-sim --schemas=${outBase}/schemas/ --input=${outBase}/data/entries.ndjson --open`);
   } else {
-    console.log(`  cms-sim --schemas=${args.output}/schemas/ --open`);
+    console.log(`  cms-sim --schemas=${outBase}/schemas/ --open`);
   }
   console.log('');
 }
