@@ -13,7 +13,7 @@
   },
   "scripts": {
     "start": "node bin/cms-sim.js",
-    "test": "node --test 'src/**/*.test.js'"
+    "test": "node --test 'src/**/*.test.js' 'test/*.test.js'"
   },
   "keywords": [
     "contentful",
@@ -34,10 +34,18 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JoshuaPozos/content-model-simulator.git"
+  },
+  "homepage": "https://github.com/JoshuaPozos/content-model-simulator#readme",
+  "bugs": {
+    "url": "https://github.com/JoshuaPozos/content-model-simulator/issues"
+  },
   "files": [
     "bin/",
     "src/",
-    "schemas/",
+    "examples/",
     "README.md",
     "LICENSE"
   ]

@@ -31,7 +31,7 @@ export function validateEntry(entry, ctDef, baseLocale) {
 
   // Check for unknown fields
   for (const fieldName of Object.keys(entry.fields)) {
-    if (fieldName === 'locale') continue; // infrastructure field
+    if (fieldName === 'locale' || fieldName === 'internalName') continue; // infrastructure fields
     if (!validFieldIds.has(fieldName)) {
       warnings.push({
         type: 'FIELD_NOT_IN_DEFINITION',
