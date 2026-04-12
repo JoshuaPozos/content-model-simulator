@@ -30,6 +30,7 @@ export function simulate(config: SimulateConfig): SimulationReport {
     documents,
     schemas,
     transformers,
+    assets: preSuppliedAssets,
     options = {},
   } = config;
 
@@ -136,12 +137,30 @@ export function simulate(config: SimulateConfig): SimulationReport {
 
   // ─── Extract assets ─────────────────────────────────────────────────
   const { assets, urlToAssetId } = extractAssets(documents, { isAsset, getAssetUrl });
+  // Merge pre-supplied assets (e.g. from mock generator)
+  if (preSuppliedAssets && preSuppliedAssets.length > 0) {
+    const existingIds = new Set(assets.map(a => a.id));
+    for (const a of preSuppliedAssets) {
+      if (!existingIds.has(a.id)) {
+        assets.push(a);
+        existingIds.add(a.id);
+      }
+    }
+  }
   report.assets = assets;
 
   // ─── Transform & process documents ──────────────────────────────────
   const { transformGeneric } = await_import_transform();
 
   for (const doc of documents) {
+    if (!doc.contentType) {
+      report.warnings.push({
+        type: 'MISSING_CONTENT_TYPE',
+        path: doc.path || doc.id || '(unknown)',
+        message: 'Document has no contentType and was skipped',
+      });
+      continue;
+    }
     if (isSkipped(doc.contentType)) continue;
 
     const targetType = getTargetType(doc.contentType);

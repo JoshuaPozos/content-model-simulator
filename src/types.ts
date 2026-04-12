@@ -183,6 +183,7 @@ export interface SimulateConfig {
   documents: Document[];
   schemas: SchemaInput;
   transformers?: TransformerLike;
+  assets?: Asset[];
   options?: SimulateOptions;
 }
 

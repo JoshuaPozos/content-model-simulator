@@ -127,6 +127,8 @@ OPTIONS:
 
 > **Security:** `cms-sim pull` only reads from Contentful — it never writes. Use a Content Delivery API (CDA) token, which is read-only. Your token is never stored or logged.
 
+> **Security:** Schema files (`--schemas`) and transformer files (`--transforms`) are loaded via dynamic `import()` and execute as JavaScript. Only point these flags at directories you trust — never at untrusted or user-supplied paths.
+
 ## Programmatic API
 
 ### From scratch (mock data)
@@ -136,19 +138,20 @@ import {
   simulate,
   generateMockData,
   SchemaRegistry,
-  TransformerRegistry,
   generateContentBrowserHTML,
+  generateModelGraphHTML,
   writeReport,
 } from 'content-model-simulator';
+import fs from 'node:fs';
+import path from 'node:path';
 
 // 1. Load schemas
 const schemas = new SchemaRegistry();
 await schemas.loadFromDirectory('./schemas');
 
 // 2. Generate mock entries
-const { documents } = generateMockData(schemas.all(), {
+const { documents, assets } = generateMockData(schemas, {
   entriesPerType: 5,
-  baseLocale: 'en',
   locales: ['en', 'es'],
 });
 
@@ -156,12 +159,17 @@ const { documents } = generateMockData(schemas.all(), {
 const report = simulate({
   documents,
   schemas,
-  transformers: new TransformerRegistry(),
-  options: { name: 'my-model', baseLocale: 'en', locales: ['en', 'es'] },
+  assets,
+  options: { name: 'my-model', locales: ['en', 'es'] },
 });
 
-// 4. Output
-writeReport(report, './output/my-model');
+// 4. Write JSON output (entries, content-types, manifest, validation)
+const outDir = './output/my-model';
+writeReport(report, outDir);
+
+// 5. Generate HTML reports
+fs.writeFileSync(path.join(outDir, 'content-browser.html'), generateContentBrowserHTML(report));
+fs.writeFileSync(path.join(outDir, 'visual-report.html'), generateModelGraphHTML(report));
 ```
 
 ### With real data (migration)
@@ -176,6 +184,8 @@ import {
   generateModelGraphHTML,
   writeReport,
 } from 'content-model-simulator';
+import fs from 'node:fs';
+import path from 'node:path';
 
 // 1. Read source documents
 const documents = await readDocuments('./data/export.ndjson');
@@ -196,11 +206,11 @@ const report = simulate({
 });
 
 // 4. Generate outputs
-const browserHTML = generateContentBrowserHTML(report);
-const graphHTML = generateModelGraphHTML(report);
+const outDir = './output/my-project';
+writeReport(report, outDir);  // JSON: entries, content-types, manifest, validation
 
-// Or write everything to disk
-writeReport(report, './output/my-project');
+fs.writeFileSync(path.join(outDir, 'content-browser.html'), generateContentBrowserHTML(report));
+fs.writeFileSync(path.join(outDir, 'visual-report.html'), generateModelGraphHTML(report));
 ```
 
 ## Content Type Schema Format

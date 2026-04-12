@@ -229,6 +229,7 @@ async function main() {
 
   // ── Step 2: Read or generate documents ──────────────────────
   let documents;
+  let mockAssets = undefined;
   const baseLocale = args.baseLocale || config.baseLocale || 'en';
   const locales = args.locales
     ? args.locales.split(',').map(l => l.trim())
@@ -254,6 +255,7 @@ async function main() {
       name: projectName,
     });
     documents = mockResult.documents;
+    mockAssets = mockResult.assets;
     console.log(`${c.green}✓${c.reset} Generated ${c.bold}${documents.length}${c.reset} mock entries (${entriesPerType}/type)\n`);
   }
 
@@ -290,6 +292,7 @@ async function main() {
     documents,
     schemas,
     transformers,
+    assets: mockAssets,
     options: {
       name: projectName,
       baseLocale,
@@ -413,6 +416,10 @@ async function pullMain(argv) {
   }
 
   if (args.help) { showPullHelp(); process.exit(0); }
+
+  if (args.maxEntries !== 1000 && !args.includeEntries) {
+    console.log(`${c.yellow}⚠ --max-entries has no effect without --include-entries${c.reset}\n`);
+  }
 
   const outputDir = resolve(args.output);
 

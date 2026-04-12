@@ -19,7 +19,7 @@ const CMA_BASE = 'https://api.contentful.com';
 async function fetchAll(
   url: string,
   headers: Record<string, string>,
-  { verbose = false, maxItems = Infinity }: { verbose?: boolean; maxItems?: number } = {},
+  { verbose = false, maxItems = Infinity, onProgress }: { verbose?: boolean; maxItems?: number; onProgress?: (fetched: number, total: number) => void } = {},
 ): Promise<any[]> {
   const items: any[] = [];
   let skip = 0;
@@ -38,6 +38,8 @@ async function fetchAll(
 
     const data = await res.json();
     items.push(...(data.items || []));
+
+    if (onProgress) onProgress(items.length, data.total || items.length);
 
     if (items.length >= maxItems) break;
     if (items.length >= (data.total || 0)) break;
@@ -161,8 +163,15 @@ export async function pull(options: PullOptions): Promise<PullResult> {
     const entriesRaw = await fetchAll(
       `${envUrl}/entries?locale=*`,
       headers,
-      { verbose, maxItems: maxEntries },
+      {
+        verbose,
+        maxItems: maxEntries,
+        onProgress: (fetched, total) => {
+          if (!verbose) process.stdout.write(`\r  Fetching entries... ${fetched}/${total}`);
+        },
+      },
     );
+    if (!verbose) process.stdout.write('\n');
 
     documents = entriesRaw.flatMap(entry => toDocuments(entry, locales));
     if (verbose) {
