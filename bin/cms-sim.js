@@ -89,6 +89,7 @@ ${c.cyan}COMMANDS:${c.reset}
   cms-sim [options]              ${c.dim}Run local simulation (default)${c.reset}
   cms-sim pull [options]         ${c.dim}Download content model from Contentful${c.reset}
   cms-sim diff --old=A --new=B   ${c.dim}Compare two schema directories${c.reset}
+  cms-sim validate [options]     ${c.dim}Validate schemas + data (no HTML output)${c.reset}
 
 ${c.cyan}SIMULATE — USAGE:${c.reset}
   cms-sim --schemas=<dir> [options]                  ${c.dim}Preview content model${c.reset}
@@ -339,9 +340,12 @@ async function runSimulation(args) {
 
   // ── Step 6: Write output ────────────────────────────────────
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+  const safeName = projectName.replace(/[^a-zA-Z0-9_-]/g, '-');
   const outputDir = args.output
     ? resolve(args.output)
-    : resolve('output', `${projectName.replace(/[^a-zA-Z0-9_-]/g, '-')}_${timestamp}`);
+    : args.watch
+      ? resolve('output', safeName)
+      : resolve('output', `${safeName}_${timestamp}`);
 
   // JSON output
   const { filesWritten } = writeReport(report, outputDir);
@@ -609,10 +613,231 @@ ${c.cyan}EXAMPLE:${c.reset}
   }
 }
 
+// ── Validate sub-command ─────────────────────────────────────────
+async function validateMain(argv) {
+  const args = {
+    schemas: null,
+    input: null,
+    transforms: null,
+    config: null,
+    baseLocale: 'en',
+    locales: null,
+    localeMap: null,
+    format: 'ndjson',
+    verbose: false,
+    json: false,
+    help: false,
+  };
+
+  for (const arg of argv) {
+    if (arg === '--help' || arg === '-h') { args.help = true; continue; }
+    if (arg === '--verbose' || arg === '-v') { args.verbose = true; continue; }
+    if (arg === '--json') { args.json = true; continue; }
+
+    const eq = arg.indexOf('=');
+    if (eq === -1) continue;
+    const key = arg.startsWith('--') ? arg.substring(2, eq) : arg.substring(0, eq);
+    const val = arg.substring(eq + 1);
+
+    switch (key) {
+      case 'schemas': args.schemas = val; break;
+      case 'input': args.input = val; break;
+      case 'transforms': args.transforms = val; break;
+      case 'config': args.config = val; break;
+      case 'base-locale': args.baseLocale = val; break;
+      case 'locales': args.locales = val; break;
+      case 'locale-map': args.localeMap = val; break;
+      case 'format': args.format = val; break;
+    }
+  }
+
+  if (args.help) {
+    console.log(`
+${c.bold}Content Model Simulator — Validate${c.reset}
+Validate schemas and data without generating HTML output. Fast, CI-friendly.
+
+${c.cyan}USAGE:${c.reset}
+  cms-sim validate --schemas=<dir> [options]
+
+${c.cyan}REQUIRED:${c.reset}
+  --schemas=<dir>       Directory with content type definitions
+
+${c.cyan}OPTIONS:${c.reset}
+  --input=<path>        Source data file or directory
+  --transforms=<dir>    Directory with custom transformer modules
+  --config=<file>       Configuration file (JSON)
+  --base-locale=<code>  Base locale code (default: en)
+  --locales=<list>      Comma-separated locale codes
+  --locale-map=<file>   JSON file mapping source → target locale codes
+  --format=<fmt>        Input format: ndjson, json, dir (default: auto-detect)
+  --json                Output results as JSON
+  --verbose, -v         Verbose logging
+  --help, -h            Show this help
+
+${c.cyan}EXAMPLES:${c.reset}
+  ${c.dim}# Validate schemas only (mock data)${c.reset}
+  cms-sim validate --schemas=schemas/
+
+  ${c.dim}# Validate schemas + data${c.reset}
+  cms-sim validate --schemas=schemas/ --input=data/entries.ndjson
+
+  ${c.dim}# CI pipeline (exit code 1 on errors)${c.reset}
+  cms-sim validate --schemas=schemas/ --input=data/ --json
+`);
+    process.exit(0);
+  }
+
+  if (!args.schemas) {
+    console.error(`${c.red}Error: --schemas is required${c.reset}`);
+    process.exit(1);
+  }
+
+  const schemasPath = resolve(args.schemas);
+  const inputPath = args.input ? resolve(args.input) : null;
+
+  if (!existsSync(schemasPath)) {
+    console.error(`${c.red}Error: Schemas directory not found: ${schemasPath}${c.reset}`);
+    process.exit(1);
+  }
+  if (inputPath && !existsSync(inputPath)) {
+    console.error(`${c.red}Error: Input not found: ${inputPath}${c.reset}`);
+    process.exit(1);
+  }
+
+  // Load config
+  let config = {};
+  if (args.config) {
+    const configPath = resolve(args.config);
+    if (existsSync(configPath)) {
+      config = JSON.parse(readFileSync(configPath, 'utf-8'));
+    }
+  }
+
+  // Load schemas
+  const schemas = new SchemaRegistry();
+  await schemas.loadFromDirectory(schemasPath);
+
+  // Load or generate documents
+  let documents;
+  const baseLocale = args.baseLocale || config.baseLocale || 'en';
+  const locales = args.locales
+    ? args.locales.split(',').map(l => l.trim())
+    : (config.locales || null);
+
+  if (inputPath) {
+    documents = await readDocuments(inputPath, { format: args.format });
+  } else {
+    const mockResult = generateMockData(schemas.getAll(), {
+      entriesPerType: 3,
+      baseLocale,
+      locales: locales || [baseLocale],
+    });
+    documents = mockResult.documents;
+  }
+
+  // Load transformers
+  const transformers = new TransformerRegistry();
+  if (args.transforms) {
+    const transformsPath = resolve(args.transforms);
+    if (existsSync(transformsPath)) {
+      const { readdirSync } = await import('node:fs');
+      const files = readdirSync(transformsPath).filter(f => /\.(js|mjs)$/.test(f));
+      for (const file of files) {
+        const mod = await import(join(transformsPath, file));
+        if (typeof mod.register === 'function') {
+          mod.register(transformers);
+        }
+      }
+    }
+  }
+
+  // Locale map
+  let localeMap = config.localeMap || null;
+  if (args.localeMap) {
+    const mapPath = resolve(args.localeMap);
+    if (existsSync(mapPath)) {
+      localeMap = JSON.parse(readFileSync(mapPath, 'utf-8'));
+    }
+  }
+
+  // Run simulation
+  const report = simulate({
+    documents,
+    schemas,
+    transformers,
+    options: {
+      baseLocale,
+      locales,
+      localeMap,
+      fieldGroupMap: config.fieldGroupMap || null,
+      verbose: args.verbose,
+    },
+  });
+
+  // Output
+  if (args.json) {
+    console.log(JSON.stringify({
+      valid: report.errors.length === 0,
+      contentTypes: report.stats.totalCTs,
+      entries: report.stats.totalComponents,
+      locales: report.stats.totalLocales,
+      errors: report.errors,
+      warnings: report.warnings,
+    }, null, 2));
+  } else {
+    console.log(`\n${c.cyan}${'═'.repeat(68)}${c.reset}`);
+    console.log(`${c.bold}Content Model Simulator — Validate${c.reset}`);
+    console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
+
+    console.log(`  Content Types: ${c.bold}${report.stats.totalCTs}${c.reset}`);
+    console.log(`  Entries:       ${c.bold}${report.stats.totalComponents}${c.reset}`);
+    console.log(`  Locales:       ${c.bold}${report.stats.totalLocales}${c.reset}`);
+
+    if (report.errors.length > 0) {
+      console.log(`\n${c.red}${c.bold}Errors (${report.errors.length}):${c.reset}`);
+      for (const e of report.errors) {
+        console.log(`  ${c.red}✗${c.reset} ${e.type} ${e.contentType || ''} ${e.message || ''}`);
+      }
+    }
+
+    if (report.warnings.length > 0) {
+      console.log(`\n${c.yellow}${c.bold}Warnings (${report.warnings.length}):${c.reset}`);
+      const grouped = {};
+      for (const w of report.warnings) {
+        if (!grouped[w.type]) grouped[w.type] = [];
+        grouped[w.type].push(w);
+      }
+      for (const [type, items] of Object.entries(grouped)) {
+        console.log(`  ${c.yellow}${type}${c.reset}: ${items.length} occurrence(s)`);
+        if (args.verbose) {
+          for (const w of items.slice(0, 5)) {
+            console.log(`    ${c.dim}${w.contentType || ''}${w.field ? '.' + w.field : ''} → ${w.entryId || ''}${c.reset}`);
+          }
+          if (items.length > 5) console.log(`    ${c.dim}...and ${items.length - 5} more${c.reset}`);
+        }
+      }
+    }
+
+    if (report.errors.length === 0 && report.warnings.length === 0) {
+      console.log(`\n  ${c.green}✓ No errors or warnings${c.reset}`);
+    } else if (report.errors.length === 0) {
+      console.log(`\n  ${c.green}✓ No errors${c.reset} (${report.warnings.length} warning${report.warnings.length === 1 ? '' : 's'})`);
+    }
+
+    console.log('');
+  }
+
+  // Exit code 1 if there are errors (useful for CI)
+  if (report.errors.length > 0) {
+    process.exit(1);
+  }
+}
+
 // ── Entry point ──────────────────────────────────────────────────
 const rawArgs = process.argv.slice(2);
 const subCommand = rawArgs[0] === 'pull' ? 'pull'
   : rawArgs[0] === 'diff' ? 'diff'
+  : rawArgs[0] === 'validate' ? 'validate'
   : 'simulate';
 
 if (subCommand === 'pull') {
@@ -623,6 +848,12 @@ if (subCommand === 'pull') {
   });
 } else if (subCommand === 'diff') {
   diffMain(rawArgs.slice(1)).catch(err => {
+    console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);
+    if (process.env.DEBUG) console.error(err.stack);
+    process.exit(1);
+  });
+} else if (subCommand === 'validate') {
+  validateMain(rawArgs.slice(1)).catch(err => {
     console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);
     if (process.env.DEBUG) console.error(err.stack);
     process.exit(1);

@@ -20,7 +20,7 @@ const CMA_BASE = 'https://api.contentful.com';
 async function fetchAll(
   url: string,
   headers: Record<string, string>,
-  { verbose = false, maxItems = Infinity, onProgress }: { verbose?: boolean; maxItems?: number; onProgress?: (fetched: number, total: number) => void } = {},
+  { verbose = false, maxItems = Infinity, usePreview = false, onProgress }: { verbose?: boolean; maxItems?: number; usePreview?: boolean; onProgress?: (fetched: number, total: number) => void } = {},
 ): Promise<any[]> {
   const items: any[] = [];
   let skip = 0;
@@ -34,6 +34,9 @@ async function fetchAll(
     const res = await fetch(pagedUrl, { headers });
     if (!res.ok) {
       const body = await res.text();
+      if (res.status === 401 && usePreview) {
+        throw new Error(`Contentful API 401 (Unauthorized). The --preview flag requires a Content Preview API (CPA) token, not a CDA token. Check your --access-token or CONTENTFUL_ACCESS_TOKEN.`);
+      }
       throw new Error(`Contentful API ${res.status}: ${body}`);
     }
 
@@ -148,14 +151,14 @@ export async function pull(options: PullOptions): Promise<PullResult> {
 
   // ── Fetch locales ──────────────────────────────────────────
   if (verbose) console.log('\nFetching locales...');
-  const localesRaw = await fetchAll(`${envUrl}/locales`, headers, { verbose });
+  const localesRaw = await fetchAll(`${envUrl}/locales`, headers, { verbose, usePreview });
   const locales = localesRaw.map((l: any) => l.code as string);
   const defaultLocale = localesRaw.find((l: any) => l.default)?.code || locales[0] || 'en';
   if (verbose) console.log(`  Found ${locales.length} locale(s): ${locales.join(', ')}`);
 
   // ── Fetch content types ────────────────────────────────────
   if (verbose) console.log('\nFetching content types...');
-  const contentTypesRaw = await fetchAll(`${envUrl}/content_types`, headers, { verbose });
+  const contentTypesRaw = await fetchAll(`${envUrl}/content_types`, headers, { verbose, usePreview });
   const schemas = contentTypesRaw.map(toSchema);
   if (verbose) console.log(`  Found ${schemas.length} content type(s)`);
 
@@ -171,6 +174,7 @@ export async function pull(options: PullOptions): Promise<PullResult> {
       headers,
       {
         verbose,
+        usePreview,
         maxItems: maxEntries,
         onProgress: (fetched, total) => {
           if (!verbose) process.stdout.write(`\r  Fetching entries... ${fetched}/${total}`);

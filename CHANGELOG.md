@@ -25,11 +25,14 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry validation**: field-level checks against content type definitions
 - **`writeReport()`**: write simulation report to JSON
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
-- **Test suite**: 209 tests (unit + e2e), zero `as any` casts
+- **Test suite**: 218 tests (unit + e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
 - **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property
 - **Security**: documented that `--schemas`/`--transforms` dirs execute JS via dynamic `import()`
+- **`cms-sim validate`**: standalone validation subcommand for CI/CD — runs the simulation pipeline and outputs errors/warnings only (no HTML). Supports `--json` for machine-readable output and exits with code 1 on validation errors.
+- **Watch mode fixed output dir**: `--watch` now uses a stable output directory (`output/<name>/`) instead of timestamped dirs, so the browser URL stays valid and F5 refreshes work.
+- **Pull preview 401 warning**: when `--preview` is used and the API returns 401, the error message now suggests using a Content Preview API (CPA) token instead of a CDA token.
 
 ### Fixed
 - Skip `internalName` in validator (false positive warnings)

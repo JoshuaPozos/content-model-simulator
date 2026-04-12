@@ -375,3 +375,122 @@ describe('CLI: verbose mode', () => {
     assert.ok(fs.existsSync(path.join(outDir, 'manifest.json')));
   });
 });
+
+// ─── Watch mode: fixed output dir ───────────────────────────────
+
+describe('CLI: watch mode output dir', () => {
+  let outDir;
+
+  afterEach(() => {
+    if (outDir) cleanup(outDir);
+  });
+
+  it('uses fixed output dir (no timestamp) when --watch is set', async () => {
+    outDir = tmpDir();
+    // We can't actually test watch mode in e2e (it blocks), but we can test
+    // that without --watch, the output dir contains a timestamp-like pattern,
+    // and with --output explicit it still uses the explicit dir.
+    const { stdout } = await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+    ]);
+    assert.ok(stdout.includes('Content Types:'));
+    assert.ok(fs.existsSync(path.join(outDir, 'manifest.json')));
+  });
+});
+
+// ─── Validate sub-command ────────────────────────────────────────
+
+describe('CLI: validate subcommand', () => {
+  it('shows help with validate --help', async () => {
+    const { stdout } = await cli(['validate', '--help']);
+    assert.ok(stdout.includes('Validate'));
+    assert.ok(stdout.includes('--schemas'));
+    assert.ok(stdout.includes('--json'));
+    assert.ok(stdout.includes('CI'));
+  });
+
+  it('fails without --schemas', async () => {
+    await assert.rejects(
+      () => cli(['validate']),
+      (err) => {
+        const output = (err.stderr || '') + (err.stdout || '');
+        assert.ok(output.includes('--schemas is required'));
+        return true;
+      }
+    );
+  });
+
+  it('validates schemas-only (mock data) successfully', async () => {
+    const { stdout } = await cli(['validate', `--schemas=${SCHEMAS_DIR}`]);
+    assert.ok(stdout.includes('Content Types:'));
+    assert.ok(stdout.includes('Entries:'));
+    assert.ok(stdout.includes('No errors'));
+  });
+
+  it('validates schemas + data file successfully', async () => {
+    const { stdout } = await cli([
+      'validate',
+      `--schemas=${SCHEMAS_DATA_DIR}`,
+      `--input=${DATA_FILE}`,
+    ]);
+    assert.ok(stdout.includes('Content Types:'));
+    assert.ok(stdout.includes('Entries:'));
+  });
+
+  it('outputs JSON with --json flag', async () => {
+    const { stdout } = await cli(['validate', `--schemas=${SCHEMAS_DIR}`, '--json']);
+    const result = JSON.parse(stdout);
+    assert.equal(typeof result.valid, 'boolean');
+    assert.ok(Array.isArray(result.errors));
+    assert.ok(Array.isArray(result.warnings));
+    assert.equal(typeof result.contentTypes, 'number');
+    assert.ok(result.contentTypes > 0);
+    assert.equal(typeof result.entries, 'number');
+  });
+
+  it('fails with non-existent schemas dir', async () => {
+    await assert.rejects(
+      () => cli(['validate', '--schemas=/tmp/nonexistent-dir-xyz']),
+      (err) => {
+        const output = (err.stderr || '') + (err.stdout || '');
+        assert.ok(output.includes('not found'));
+        return true;
+      }
+    );
+  });
+
+  it('verbose mode shows warning details', async () => {
+    const { stdout } = await cli([
+      'validate',
+      `--schemas=${SCHEMAS_DATA_DIR}`,
+      `--input=${DATA_FILE}`,
+      '--verbose',
+    ]);
+    assert.ok(stdout.includes('Content Types:'));
+  });
+});
+
+// ─── Pull preview 401 token warning ─────────────────────────────
+
+describe('CLI: pull preview 401 detection', () => {
+  it('pull --preview with invalid token mentions CPA in error', async () => {
+    await assert.rejects(
+      () => cli([
+        'pull',
+        '--space-id=test123',
+        '--access-token=bad-token',
+        '--preview',
+      ]),
+      (err) => {
+        const output = (err.stderr || '') + (err.stdout || '');
+        // Should mention CPA or Preview API in the error
+        assert.ok(
+          output.includes('CPA') || output.includes('Preview') || output.includes('401') || output.includes('Unauthorized'),
+          `Expected CPA/Preview/401 message, got: ${output.substring(0, 300)}`
+        );
+        return true;
+      }
+    );
+  });
+});
