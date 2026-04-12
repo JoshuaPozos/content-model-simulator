@@ -2,7 +2,11 @@
 
 Preview your Contentful content model locally — **zero API calls, zero dependencies**.
 
-Simulate how your content types, entries, and assets will look in Contentful without uploading anything. Works for both **designing content models from scratch** and **simulating migrations from other CMSs**.
+Simulate how your content types, entries, and assets **will look** in Contentful before you commit to an actual migration. This tool runs **entirely offline** — it never connects to Contentful, never uploads data, and never modifies your Contentful space. You get an interactive local preview so you can validate your content model, catch errors early, and iterate with confidence.
+
+Works for both **designing content models from scratch** and **previewing how a migration from another CMS will look**.
+
+> **This is a simulation tool, not a migration tool.** It generates a local preview of your content model and entries. The actual migration to Contentful (via `contentful-migration`, `contentful-import`, or the Management API) is a separate step you perform once you're satisfied with the simulation.
 
 ## Features
 
@@ -38,9 +42,9 @@ npx cms-sim --schemas=schemas/ --locales=en,es,fr --open
 npx cms-sim --schemas=schemas/ --entries-per-type=10 --open
 ```
 
-### Workflow 2: Simulate a migration (with source data)
+### Workflow 2: Preview a migration (with source data)
 
-Feed real data from another CMS alongside your Contentful schemas to preview how the migration will look.
+Feed real data exported from another CMS alongside your Contentful schemas to preview how the migrated content **would look** in Contentful. No data is sent anywhere — the simulation runs 100% locally.
 
 ```bash
 # From NDJSON export
@@ -57,7 +61,7 @@ npx cms-sim --schemas=schemas/ --input=data/ --locale-map=locales.json --verbose
 
 ```
 cms-sim --schemas=<dir> [options]                  # Preview content model
-cms-sim --schemas=<dir> --input=<path> [options]   # Simulate migration
+cms-sim --schemas=<dir> --input=<path> [options]   # Preview migration locally
 
 REQUIRED:
   --schemas=<dir>        Content type definitions directory (.js/.mjs/.json)
@@ -294,7 +298,7 @@ The `simulate()` function returns a report with this shape:
 
 ## CMS Migration Guides
 
-Step-by-step guides for migrating from popular CMSs. Each guide covers exporting data, mapping schemas, writing custom transformers, and simulating the migration.
+Step-by-step guides for **previewing** migrations from popular CMSs. Each guide covers exporting data from the source CMS, mapping schemas to Contentful field types, writing custom transformers, and running a local simulation to verify everything looks correct before you perform the actual migration.
 
 | Source CMS | Guide |
 |------------|-------|
@@ -306,6 +310,15 @@ Step-by-step guides for migrating from popular CMSs. Each guide covers exporting
 | Prismic | [examples/migration-guides/prismic/](examples/migration-guides/prismic/) |
 | Hygraph (GraphCMS) | [examples/migration-guides/hygraph/](examples/migration-guides/hygraph/) |
 | Bloomreach | [examples/migration-guides/bloomreach/](examples/migration-guides/bloomreach/) |
+
+## What This Tool Does NOT Do
+
+- **Does NOT connect to Contentful** — no API keys, no network calls, no authentication
+- **Does NOT create or modify content types** in your Contentful space
+- **Does NOT upload entries or assets** to Contentful
+- **Does NOT run `contentful-migration` scripts** — that's a separate step
+
+This is purely a local preview and validation tool. Once your simulation looks correct, you use Contentful's own tools (`contentful-migration`, `contentful-import`, or the Management API) to perform the actual migration.
 
 ## License
 

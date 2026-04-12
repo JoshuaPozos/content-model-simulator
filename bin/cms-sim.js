@@ -79,11 +79,12 @@ function parseArgs(argv) {
 function showHelp() {
   console.log(`
 ${c.bold}Content Model Simulator${c.reset}
-Preview your Contentful content model locally — zero API calls.
+Preview your Contentful content model locally — never connects to Contentful.
+Runs 100% offline. Does not upload or migrate anything.
 
 ${c.cyan}USAGE:${c.reset}
   cms-sim --schemas=<dir> [options]                  ${c.dim}Preview content model${c.reset}
-  cms-sim --schemas=<dir> --input=<path> [options]   ${c.dim}Simulate migration${c.reset}
+  cms-sim --schemas=<dir> --input=<path> [options]   ${c.dim}Preview migration locally${c.reset}
 
 ${c.cyan}REQUIRED:${c.reset}
   --schemas=<dir>       Directory containing Contentful content type definitions
