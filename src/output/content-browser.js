@@ -506,6 +506,7 @@ function renderFieldValue(val, fDef, locale) {
     return '<div class="field-value"><code>' + esc(JSON.stringify(val)) + '</code></div>';
   }
 
+  if (typeof val === 'object' && val.nodeType === 'document') return renderRichText(val);
   if (typeof val === 'object') return renderObjectValue(val);
   if (typeof val === 'boolean') return '<div class="field-value">' + (val ? '<span style="color:#36B37E">✅ true</span>' : '<span style="color:#DE350B">❌ false</span>') + '</div>';
   if (typeof val === 'number') return '<div class="field-value"><strong>' + val + '</strong></div>';
@@ -516,6 +517,69 @@ function renderFieldValue(val, fDef, locale) {
   if (str.startsWith('http://') || str.startsWith('https://')) return '<div class="field-value"><a href="' + esc(str) + '" target="_blank" style="color:var(--blue);font-size:0.82rem;word-break:break-all">' + esc(str) + '</a></div>';
   const charInfo = str.length > 20 ? '<div style="font-size:0.65rem;color:var(--gray-400);margin-top:2px">' + str.length + ' characters</div>' : '';
   return '<div class="field-value">' + esc(str) + charInfo + '</div>';
+}
+
+function renderRichText(doc) {
+  if (!doc || !doc.content) return '<div class="field-value empty">Empty RichText</div>';
+
+  function renderNode(node) {
+    if (!node) return '';
+    if (node.nodeType === 'text') {
+      let text = esc(node.value || '');
+      if (node.marks) {
+        for (const mark of node.marks) {
+          if (mark.type === 'bold') text = '<strong>' + text + '</strong>';
+          else if (mark.type === 'italic') text = '<em>' + text + '</em>';
+          else if (mark.type === 'underline') text = '<u>' + text + '</u>';
+          else if (mark.type === 'code') text = '<code>' + text + '</code>';
+        }
+      }
+      return text;
+    }
+
+    const children = (node.content || []).map(renderNode).join('');
+
+    switch (node.nodeType) {
+      case 'document': return children;
+      case 'paragraph': return '<p style="margin:0 0 8px">' + (children || '&nbsp;') + '</p>';
+      case 'heading-1': return '<h1 style="font-size:1.4rem;font-weight:700;margin:16px 0 8px">' + children + '</h1>';
+      case 'heading-2': return '<h2 style="font-size:1.2rem;font-weight:600;margin:14px 0 6px">' + children + '</h2>';
+      case 'heading-3': return '<h3 style="font-size:1.05rem;font-weight:600;margin:12px 0 6px">' + children + '</h3>';
+      case 'heading-4': return '<h4 style="font-size:0.95rem;font-weight:600;margin:10px 0 4px">' + children + '</h4>';
+      case 'heading-5': return '<h5 style="font-size:0.88rem;font-weight:600;margin:8px 0 4px">' + children + '</h5>';
+      case 'heading-6': return '<h6 style="font-size:0.82rem;font-weight:600;margin:8px 0 4px">' + children + '</h6>';
+      case 'unordered-list': return '<ul style="margin:0 0 8px;padding-left:20px">' + children + '</ul>';
+      case 'ordered-list': return '<ol style="margin:0 0 8px;padding-left:20px">' + children + '</ol>';
+      case 'list-item': return '<li style="margin:2px 0">' + children + '</li>';
+      case 'blockquote': return '<blockquote style="border-left:3px solid var(--gray-300);padding:4px 12px;margin:8px 0;color:var(--gray-600)">' + children + '</blockquote>';
+      case 'hr': return '<hr style="border:none;border-top:1px solid var(--gray-200);margin:12px 0">';
+      case 'hyperlink': {
+        const url = node.data?.uri || '#';
+        return '<a href="' + esc(url) + '" target="_blank" style="color:var(--blue)">' + children + '</a>';
+      }
+      case 'embedded-entry-inline':
+      case 'embedded-entry-block': {
+        const entryId = node.data?.target?.sys?.id;
+        if (entryId) return '<div style="margin:6px 0">' + renderLinkedEntry(entryId) + '</div>';
+        return '<div style="color:var(--gray-400);font-style:italic;margin:4px 0">[Embedded entry]</div>';
+      }
+      case 'embedded-asset-block': {
+        const assetId = node.data?.target?.sys?.id;
+        return '<div style="margin:6px 0"><div class="asset-link"><span class="a-icon">🖼️</span> ' + esc(assetId || 'unknown') + '</div></div>';
+      }
+      case 'table': return '<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:0.82rem">' + children + '</table>';
+      case 'table-row': return '<tr>' + children + '</tr>';
+      case 'table-cell': return '<td style="border:1px solid var(--gray-200);padding:6px 8px">' + children + '</td>';
+      case 'table-header-cell': return '<th style="border:1px solid var(--gray-200);padding:6px 8px;background:var(--gray-50);font-weight:600;text-align:left">' + children + '</th>';
+      default: return children;
+    }
+  }
+
+  const html = renderNode(doc);
+  const nodeCount = JSON.stringify(doc).length;
+  return '<div class="field-value"><div class="html-preview" style="max-height:400px;overflow-y:auto">' + html +
+    '</div><div style="font-size:0.65rem;color:var(--gray-400);margin-top:4px">RichText · ' +
+    (doc.content?.length || 0) + ' top-level nodes</div></div>';
 }
 
 function renderObjectValue(obj) {
