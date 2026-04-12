@@ -4,7 +4,8 @@
  * content-model-simulator CLI
  *
  * Usage:
- *   cms-sim --input <path> --schemas <dir> [options]
+ *   cms-sim --schemas <dir> [options]        Simulate locally
+ *   cms-sim pull --space-id=XXX [options]    Download from Contentful
  *   cms-sim --help
  */
 
@@ -79,10 +80,14 @@ function parseArgs(argv) {
 function showHelp() {
   console.log(`
 ${c.bold}Content Model Simulator${c.reset}
-Preview your Contentful content model locally — never connects to Contentful.
+Preview your Contentful content model locally — never connects to Contentful during simulation.
 Runs 100% offline. Does not upload or migrate anything.
 
-${c.cyan}USAGE:${c.reset}
+${c.cyan}COMMANDS:${c.reset}
+  cms-sim [options]              ${c.dim}Run local simulation (default)${c.reset}
+  cms-sim pull [options]         ${c.dim}Download content model from Contentful${c.reset}
+
+${c.cyan}SIMULATE — USAGE:${c.reset}
   cms-sim --schemas=<dir> [options]                  ${c.dim}Preview content model${c.reset}
   cms-sim --schemas=<dir> --input=<path> [options]   ${c.dim}Preview migration locally${c.reset}
 
@@ -113,11 +118,60 @@ ${c.cyan}OPTIONS:${c.reset}
 ${c.cyan}EXAMPLES:${c.reset}
   ${c.dim}# Preview content model (no data needed)${c.reset}
   cms-sim --schemas=schemas/ --open
-  cms-sim --schemas=schemas/ --locales=en,es,fr --name=my-project
 
-  ${c.dim}# Simulate migration with real data${c.reset}
+  ${c.dim}# Preview migration with real data${c.reset}
   cms-sim --schemas=schemas/ --input=data/export.ndjson --open
-  cms-sim --schemas=schemas/ --input=data/ --transforms=transforms/ --verbose
+
+  ${c.dim}# Download from Contentful, then simulate${c.reset}
+  cms-sim pull --space-id=abc123 --output=my-project/
+  cms-sim --schemas=my-project/schemas/ --open
+
+Run ${c.bold}cms-sim pull --help${c.reset} for pull-specific options.
+`);
+}
+
+function showPullHelp() {
+  console.log(`
+${c.bold}Content Model Simulator — Pull${c.reset}
+Download your current content model (and optionally entries) from Contentful.
+This is the ${c.bold}only${c.reset} command that connects to Contentful — it's read-only.
+
+${c.cyan}USAGE:${c.reset}
+  cms-sim pull --space-id=<id> --access-token=<token> [options]
+
+${c.cyan}REQUIRED:${c.reset}
+  --space-id=<id>       Contentful space ID
+  --access-token=<tok>  CDA access token (read-only)
+                        ${c.dim}Or set CONTENTFUL_SPACE_ID / CONTENTFUL_ACCESS_TOKEN env vars${c.reset}
+
+${c.cyan}OPTIONS:${c.reset}
+  --environment=<env>   Environment (default: master)
+  --output=<dir>        Output directory (default: ./contentful-export)
+  --include-entries     Also download published entries
+  --max-entries=<n>     Max entries to download (default: 1000)
+  --verbose, -v         Verbose logging
+  --help, -h            Show this help
+
+${c.cyan}OUTPUT:${c.reset}
+  <output>/
+    schemas/              ${c.dim}One .js file per content type (ready for cms-sim)${c.reset}
+    contentful-space.json ${c.dim}Space metadata (locales, base locale, pulled date)${c.reset}
+    data/entries.ndjson   ${c.dim}Entries in NDJSON (only with --include-entries)${c.reset}
+
+${c.cyan}EXAMPLES:${c.reset}
+  ${c.dim}# Download content model only${c.reset}
+  cms-sim pull --space-id=abc123 --access-token=CDATOKEN --output=my-project/
+
+  ${c.dim}# Download model + entries, then simulate${c.reset}
+  cms-sim pull --space-id=abc123 --access-token=CDATOKEN --include-entries --output=my-project/
+  cms-sim --schemas=my-project/schemas/ --input=my-project/data/entries.ndjson --open
+
+  ${c.dim}# Using env vars${c.reset}
+  export CONTENTFUL_SPACE_ID=abc123
+  export CONTENTFUL_ACCESS_TOKEN=CDATOKEN
+  cms-sim pull --output=my-project/
+
+${c.yellow}Note:${c.reset} Your access token is never stored or logged. Use a CDA (read-only) token.
 `);
 }
 
@@ -328,8 +382,96 @@ async function main() {
   console.log('');
 }
 
-main().catch(err => {
-  console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);
-  if (process.env.DEBUG) console.error(err.stack);
-  process.exit(1);
-});
+// ── Pull sub-command ─────────────────────────────────────────────
+async function pullMain(argv) {
+  const args = {
+    spaceId: process.env.CONTENTFUL_SPACE_ID || null,
+    accessToken: process.env.CONTENTFUL_ACCESS_TOKEN || null,
+    environment: 'master',
+    output: './contentful-export',
+    includeEntries: false,
+    maxEntries: 1000,
+    verbose: false,
+    help: false,
+  };
+
+  for (const arg of argv) {
+    if (arg === '--help' || arg === '-h') { args.help = true; continue; }
+    if (arg === '--verbose' || arg === '-v') { args.verbose = true; continue; }
+    if (arg === '--include-entries') { args.includeEntries = true; continue; }
+
+    const eq = arg.indexOf('=');
+    if (eq === -1) continue;
+    const key = arg.startsWith('--') ? arg.substring(2, eq) : arg.substring(0, eq);
+    const val = arg.substring(eq + 1);
+
+    switch (key) {
+      case 'space-id': args.spaceId = val; break;
+      case 'access-token': args.accessToken = val; break;
+      case 'environment': args.environment = val; break;
+      case 'output': args.output = val; break;
+      case 'max-entries': args.maxEntries = parseInt(val, 10) || 1000; break;
+    }
+  }
+
+  if (args.help) { showPullHelp(); process.exit(0); }
+
+  const outputDir = resolve(args.output);
+
+  console.log(`\n${c.cyan}${'═'.repeat(68)}${c.reset}`);
+  console.log(`${c.bold}Content Model Simulator — Pull${c.reset}`);
+  console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
+  console.log(`${c.dim}Downloading content model from Contentful (read-only)...${c.reset}\n`);
+
+  const { pull } = await import('../src/contentful/pull.js');
+
+  const result = await pull({
+    spaceId: args.spaceId,
+    accessToken: args.accessToken,
+    environment: args.environment,
+    outputDir,
+    includeEntries: args.includeEntries,
+    maxEntries: args.maxEntries,
+    verbose: args.verbose,
+  });
+
+  console.log(`\n${c.green}✓${c.reset} Downloaded ${c.bold}${result.schemas.length}${c.reset} content types`);
+  console.log(`${c.green}✓${c.reset} ${c.bold}${result.locales.length}${c.reset} locales (base: ${result.defaultLocale})`);
+  if (result.documents) {
+    console.log(`${c.green}✓${c.reset} ${c.bold}${result.documents.length}${c.reset} entry-locale documents`);
+  }
+
+  console.log(`\n${c.cyan}${'─'.repeat(68)}${c.reset}`);
+  console.log(`${c.bold}Output:${c.reset} ${outputDir}`);
+  console.log(`${c.dim}  schemas/              → ${result.schemas.length} content type definitions${c.reset}`);
+  console.log(`${c.dim}  contentful-space.json  → locales & metadata${c.reset}`);
+  if (result.documents) {
+    console.log(`${c.dim}  data/entries.ndjson   → ${result.documents.length} documents${c.reset}`);
+  }
+
+  console.log(`\n${c.cyan}Next steps:${c.reset}`);
+  if (result.documents) {
+    console.log(`  cms-sim --schemas=${args.output}/schemas/ --input=${args.output}/data/entries.ndjson --open`);
+  } else {
+    console.log(`  cms-sim --schemas=${args.output}/schemas/ --open`);
+  }
+  console.log('');
+}
+
+// ── Entry point ──────────────────────────────────────────────────
+const rawArgs = process.argv.slice(2);
+const subCommand = rawArgs[0] === 'pull' ? 'pull' : 'simulate';
+
+if (subCommand === 'pull') {
+  pullMain(rawArgs.slice(1)).catch(err => {
+    console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);
+    if (process.env.DEBUG) console.error(err.stack);
+    process.exit(1);
+  });
+} else {
+  main().catch(err => {
+    console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);
+    if (process.env.DEBUG) console.error(err.stack);
+    process.exit(1);
+  });
+}

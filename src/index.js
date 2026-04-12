@@ -23,3 +23,6 @@ export { extractNestedObjects } from './extract/nested-objects.js';
 export { generateContentBrowserHTML } from './output/content-browser.js';
 export { generateModelGraphHTML } from './output/model-graph.js';
 export { writeReport } from './output/json-writer.js';
+
+// ── Contentful ───────────────────────────────────────────────────
+export { pull } from './contentful/pull.js';
