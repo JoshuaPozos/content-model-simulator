@@ -6,14 +6,8 @@ Step-by-step guides for migrating content from popular CMSs to Contentful using 
 
 | Source CMS | Guide | Status |
 |------------|-------|--------|
-| WordPress | [wordpress/](./wordpress/) | Stub |
-| Sanity | [sanity/](./sanity/) | Stub |
-| DatoCMS | [datocms/](./datocms/) | Stub |
-| Strapi | [strapi/](./strapi/) | Stub |
-| Contentstack | [contentstack/](./contentstack/) | Stub |
-| Prismic | [prismic/](./prismic/) | Stub |
-| Hygraph (GraphCMS) | [hygraph/](./hygraph/) | Stub |
-| Bloomreach | [bloomreach/](./bloomreach/) | Stub |
+| WordPress | [`examples/wordpress/`](../wordpress/) | **Working** — full end-to-end example with real Gutenberg XML |
+| Sanity | [sanity/](./sanity/) | Stub — next up |
 
 ## How to use these guides
 
