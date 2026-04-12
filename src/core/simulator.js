@@ -311,6 +311,7 @@ export function simulate(config) {
         id: specificEntryId,
         contentType: specificCtfType,
         locale,
+        sourceId: doc.id || null,
         sourcePath: doc.path || null,
         sourceType: doc.contentType,
         fields,

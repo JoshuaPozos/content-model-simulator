@@ -31,6 +31,7 @@ export function generateContentBrowserHTML(report) {
       fields: e.fields,
       linkedEntryIds: e.linkedEntryIds || [],
       linkedAssetIds: e.linkedAssetIds || [],
+      sourceId: e.sourceId || null,
       sourcePath: e.sourcePath || null,
       status: 'Draft',
     });
@@ -101,6 +102,7 @@ export function generateContentBrowserHTML(report) {
       status: e.status,
       linkedEntryIds: e.linkedEntryIds,
       linkedAssetIds: e.linkedAssetIds,
+      sourceId: e.sourceId || null,
       sourcePath: e.sourcePath || null,
     })),
   };
@@ -325,7 +327,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 // ═══════════════════════════════════════════════════════════════════
 const BROWSER_JS = `
 const entryMap = {};
-DATA.entries.forEach(e => { entryMap[e.id] = e; });
+const sourceIdMap = {};
+DATA.entries.forEach(e => {
+  entryMap[e.id] = e;
+  if (e.sourceId) sourceIdMap[e.sourceId] = e;
+});
 
 const listEl = document.getElementById('entry-list');
 const countEl = document.getElementById('entry-count');
@@ -663,12 +669,12 @@ function renderEmbeddedArray(arr, fDef) {
 }
 
 function renderLinkedEntry(entryId) {
-  const linked = entryMap[entryId];
+  const linked = entryMap[entryId] || sourceIdMap[entryId];
   if (!linked) {
     return '<div class="linked-entry" style="opacity:0.5"><span class="le-ct">?</span><span class="le-name">' + esc(entryId) + '</span><span style="font-size:0.65rem;color:var(--gray-400)">Not in simulation</span></div>';
   }
   const ctDef = DATA.contentTypes[linked.contentType];
-  return '<div class="linked-entry" onclick="openEntry(\\'' + entryId + '\\')"><span class="le-ct">' + esc(ctDef?.name || linked.contentType) + '</span><span class="le-name">' + esc(getDisplayName(linked)) + '</span><span class="le-status draft">Draft</span><span class="le-arrow">›</span></div>';
+  return '<div class="linked-entry" onclick="openEntry(\\'' + linked.id + '\\')"><span class="le-ct">' + esc(ctDef?.name || linked.contentType) + '</span><span class="le-name">' + esc(getDisplayName(linked)) + '</span><span class="le-status draft">Draft</span><span class="le-arrow">›</span></div>';
 }
 
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
