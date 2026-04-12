@@ -25,7 +25,7 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry validation**: field-level checks against content type definitions
 - **`writeReport()`**: write simulation report to JSON
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
-- **Test suite**: 290 tests (unit + e2e), zero `as any` casts
+- **Test suite**: 326 tests (unit + e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
 - **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property
@@ -44,8 +44,11 @@ All notable changes to `content-model-simulator` are documented here.
 - **Custom HTML templates** (`--template-css`, `--template-head`): inject custom CSS and `<head>` content into content browser and model graph HTML output. Enables branding, custom fonts, and styling overrides.
 - **`SECURITY.md`**: consolidated security documentation covering threat model, resolved vulnerabilities, accepted risks, and supply chain.
 - **Rich Text support** (`htmlToRichText`): zero-dependency HTML → Contentful Rich Text JSON converter. Auto-converts HTML strings in RichText fields during simulation. Supports headings, lists, marks, links, images, tables, blockquotes. Exported as public API with `looksLikeHTML()` and `isRichTextDocument()` helpers.
+- **WordPress WXR reader** (`readWXR`): zero-dependency parser for WordPress eXtended RSS (WXR 1.2) export files. Auto-detected from `.xml` extension or `<?xml`/`<rss` content. Extracts posts, pages, attachments, authors, categories, and tags as `Document[]`. Strips Gutenberg block comments (`<!-- wp:* -->`) from HTML content. Exports `readWXR()`, `parseWXR()`, `parseWXRString()`, `stripGutenbergComments()` plus types `WXRReadOptions`, `WXRSite`, `WXRResult`.
+- **WordPress example** (`examples/wordpress/`): end-to-end migration example using real Gutenberg test data XML with schemas (blogPost, author, category, tag), transforms, and programmatic runner.
 
 ### Fixed
+- **CLI format auto-detection**: default `--format` changed from `'ndjson'` to `'auto'`, enabling proper detection of XML, JSON array, and JSON directory inputs without explicit `--format` flag.
 - **Dynamic `import()` path containment** (CWE-94): `realpathSync()` check ensures schema, transform, and plugin files resolve within the specified directory (prevents symlink escape)
 - **JSON.parse file size warning** (CWE-400): emits warning for JSON array files >100 MB recommending NDJSON streaming format
 - Skip `internalName` in validator (false positive warnings)
@@ -61,4 +64,4 @@ All notable changes to `content-model-simulator` are documented here.
 ### Infrastructure
 - Zero runtime dependencies, Node.js >= 18, ESM (`"type": "module"`)
 - TypeScript 6.0.2, `@types/node` 25.6.0
-- 3 example projects (from-scratch, pull-contentful, wp-migration)
+- 3 example projects (from-scratch, with-data, wordpress)

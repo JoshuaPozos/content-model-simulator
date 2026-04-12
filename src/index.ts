@@ -88,3 +88,7 @@ export { writeReport } from './output/json-writer.js';
 
 // ── Contentful ───────────────────────────────────────────────────
 export { pull } from './contentful/pull.js';
+
+// ── WordPress ────────────────────────────────────────────────────
+export { readWXR, parseWXR, parseWXRString, stripGutenbergComments } from './wordpress/wxr-reader.js';
+export type { WXRReadOptions, WXRSite, WXRResult } from './wordpress/wxr-reader.js';

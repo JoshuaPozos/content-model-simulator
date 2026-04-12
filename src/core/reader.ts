@@ -5,6 +5,7 @@
  * - NDJSON (newline-delimited JSON)
  * - JSON array (single file with array of documents)
  * - JSON directory (one JSON file per document)
+ * - WXR (WordPress eXtended RSS XML export)
  *
  * Expected document shape (normalized):
  * {
@@ -21,6 +22,7 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 import type { Document, ReadOptions } from '../types.js';
+import { readWXR } from '../wordpress/wxr-reader.js';
 
 export async function readDocuments(inputPath: string, options: ReadOptions = {}): Promise<Document[]> {
   const { format = 'auto', transform } = options;
@@ -42,6 +44,9 @@ export async function readDocuments(inputPath: string, options: ReadOptions = {}
       break;
     case 'json-dir':
       documents = readJSONDirectory(resolvedPath);
+      break;
+    case 'wxr':
+      documents = readWXR(resolvedPath);
       break;
     default:
       throw new Error(`Unknown format: ${detectedFormat}`);
@@ -74,6 +79,9 @@ export function readDocumentsSync(inputPath: string, options: ReadOptions = {}):
       break;
     case 'json-dir':
       documents = readJSONDirectory(resolvedPath);
+      break;
+    case 'wxr':
+      documents = readWXR(resolvedPath);
       break;
     default:
       throw new Error(`Unknown format: ${detectedFormat}`);
@@ -154,17 +162,20 @@ export function getDocumentStats(documents: Document[]) {
 
 // ─── Internal Readers ──────────────────────────────────────────────
 
-function detectFormat(filePath: string): 'ndjson' | 'json-array' | 'json-dir' {
+function detectFormat(filePath: string): 'ndjson' | 'json-array' | 'json-dir' | 'wxr' {
   const stat = fs.statSync(filePath);
   if (stat.isDirectory()) return 'json-dir';
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.ndjson' || ext === '.jsonl') return 'ndjson';
+  if (ext === '.xml') return 'wxr';
   // Peek at first non-empty character to distinguish JSON array from NDJSON
   const fd = fs.openSync(filePath, 'r');
   const buf = Buffer.alloc(1024);
   fs.readSync(fd, buf, 0, 1024, 0);
   fs.closeSync(fd);
   const content = buf.toString('utf-8').trimStart();
+  // Detect XML even without .xml extension
+  if (content.startsWith('<?xml') || content.startsWith('<rss')) return 'wxr';
   if (content.startsWith('[')) return 'json-array';
   return 'ndjson';
 }
