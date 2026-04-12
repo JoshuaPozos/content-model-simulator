@@ -232,7 +232,7 @@ async function main() {
   const baseLocale = args.baseLocale || config.baseLocale || 'en';
   const locales = args.locales
     ? args.locales.split(',').map(l => l.trim())
-    : (config.locales || [baseLocale]);
+    : (config.locales || null); // null = let simulator auto-detect from data
 
   if (inputPath) {
     if (args.verbose) console.log(`${c.dim}Reading documents from ${inputPath}...${c.reset}`);
@@ -250,7 +250,7 @@ async function main() {
     const mockResult = generateMockData(allSchemas, {
       entriesPerType,
       baseLocale,
-      locales,
+      locales: locales || [baseLocale],
       name: projectName,
     });
     documents = mockResult.documents;
