@@ -1,0 +1,44 @@
+{
+  "name": "content-model-simulator",
+  "version": "0.1.0",
+  "description": "Preview Contentful content models locally. Simulate entries, validate schemas, and browse content — zero API calls.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./cli": "./bin/cms-sim.js"
+  },
+  "bin": {
+    "cms-sim": "./bin/cms-sim.js"
+  },
+  "scripts": {
+    "start": "node bin/cms-sim.js",
+    "test": "node --test src/**/*.test.js"
+  },
+  "keywords": [
+    "contentful",
+    "content-model",
+    "contentful-migration",
+    "contentful-preview",
+    "cms",
+    "migration",
+    "simulator",
+    "content-type",
+    "visualization",
+    "dry-run",
+    "offline",
+    "headless-cms"
+  ],
+  "author": "Joshua Pozos",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "schemas/",
+    "README.md",
+    "LICENSE"
+  ]
+}
