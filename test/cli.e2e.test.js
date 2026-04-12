@@ -1,0 +1,377 @@
+/**
+ * CLI Integration Tests
+ *
+ * End-to-end tests for the three workflows:
+ *   1. From-scratch (mock data)
+ *   2. Migration (with data)
+ *   3. Pull (error handling only — no real API)
+ *
+ * Also tests: --help, arg validation, --json mode.
+ * Uses child_process.execFile to run the actual CLI binary.
+ */
+import { describe, it, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+
+const run = promisify(execFile);
+const CLI = path.resolve(import.meta.dirname, '..', 'bin', 'cms-sim.js');
+const NODE = process.execPath;
+const SCHEMAS_DIR = path.resolve(import.meta.dirname, '..', 'examples', 'from-scratch', 'schemas');
+const DATA_FILE = path.resolve(import.meta.dirname, '..', 'examples', 'with-data', 'data', 'sample-export.ndjson');
+const SCHEMAS_DATA_DIR = path.resolve(import.meta.dirname, '..', 'examples', 'with-data', 'schemas');
+
+function tmpDir() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'cms-sim-e2e-'));
+}
+
+function cleanup(dir) {
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// Helper to run CLI
+async function cli(args, { env } = {}) {
+  return run(NODE, [CLI, ...args], {
+    env: { ...process.env, ...env, NO_COLOR: '1' },
+    timeout: 30_000,
+  });
+}
+
+// ─── Help ────────────────────────────────────────────────────────
+
+describe('CLI: help and args', () => {
+  it('shows help with --help', async () => {
+    const { stdout } = await cli(['--help']);
+    assert.ok(stdout.includes('Content Model Simulator'));
+    assert.ok(stdout.includes('--schemas'));
+    assert.ok(stdout.includes('--input'));
+  });
+
+  it('shows help with -h', async () => {
+    const { stdout } = await cli(['-h']);
+    assert.ok(stdout.includes('Content Model Simulator'));
+  });
+
+  it('shows pull help with pull --help', async () => {
+    const { stdout } = await cli(['pull', '--help']);
+    assert.ok(stdout.includes('Pull'));
+    assert.ok(stdout.includes('--space-id'));
+    assert.ok(stdout.includes('--access-token'));
+  });
+
+  it('exits with error when --schemas is missing', async () => {
+    await assert.rejects(
+      () => cli([]),
+      (err) => {
+        assert.ok(err.stderr.includes('--schemas is required') || err.stdout.includes('--schemas is required'));
+        return true;
+      }
+    );
+  });
+
+  it('exits with error when schemas dir does not exist', async () => {
+    await assert.rejects(
+      () => cli(['--schemas=/nonexistent/path']),
+      (err) => {
+        const output = err.stderr + err.stdout;
+        assert.ok(output.includes('not found') || output.includes('does not exist'));
+        return true;
+      }
+    );
+  });
+
+  it('exits with error when input file does not exist', async () => {
+    await assert.rejects(
+      () => cli([`--schemas=${SCHEMAS_DIR}`, '--input=/nonexistent/file.ndjson']),
+      (err) => {
+        const output = err.stderr + err.stdout;
+        assert.ok(output.includes('not found') || output.includes('does not exist'));
+        return true;
+      }
+    );
+  });
+});
+
+// ─── Workflow 1: From-scratch (mock data) ────────────────────────
+
+describe('CLI: from-scratch workflow (mock data)', () => {
+  let outDir;
+
+  afterEach(() => {
+    if (outDir) cleanup(outDir);
+  });
+
+  it('generates output with schemas only', async () => {
+    outDir = tmpDir();
+    const { stdout } = await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+    ]);
+
+    assert.ok(stdout.includes('Mock mode'));
+    assert.ok(stdout.includes('mock entries'));
+    assert.ok(stdout.includes('Content Types:'));
+
+    // Verify output files
+    assert.ok(fs.existsSync(path.join(outDir, 'manifest.json')));
+    assert.ok(fs.existsSync(path.join(outDir, 'validation-report.json')));
+    assert.ok(fs.existsSync(path.join(outDir, 'content-browser.html')));
+    assert.ok(fs.existsSync(path.join(outDir, 'visual-report.html')));
+    assert.ok(fs.existsSync(path.join(outDir, 'content-types')));
+    assert.ok(fs.existsSync(path.join(outDir, 'entries')));
+
+    // Check manifest
+    const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf-8'));
+    assert.ok(manifest.stats);
+    assert.ok(manifest.stats.totalCTs >= 2);
+    assert.ok(manifest.stats.totalEntries > 0);
+  });
+
+  it('respects --entries-per-type', async () => {
+    outDir = tmpDir();
+    const { stdout } = await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+      '--entries-per-type=5',
+    ]);
+
+    assert.ok(stdout.includes('5/type'));
+    const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf-8'));
+    assert.ok(manifest.stats.totalEntries >= 10); // 2 CTs * 5 entries each
+  });
+
+  it('supports multi-locale mock generation', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+      '--locales=en,es,fr',
+      '--entries-per-type=2',
+    ]);
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf-8'));
+    assert.ok(manifest.stats.totalLocales >= 1);
+    // 2 CTs * 2 entries * 3 locales = 12 entries
+    assert.ok(manifest.stats.totalEntries >= 12);
+  });
+
+  it('supports --json (no HTML)', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+      '--json',
+    ]);
+
+    assert.ok(fs.existsSync(path.join(outDir, 'manifest.json')));
+    assert.ok(!fs.existsSync(path.join(outDir, 'content-browser.html')));
+    assert.ok(!fs.existsSync(path.join(outDir, 'visual-report.html')));
+  });
+
+  it('supports --name to set project name', async () => {
+    outDir = tmpDir();
+    const { stdout } = await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+      '--name=my-project',
+    ]);
+
+    assert.ok(stdout.includes('my-project'));
+  });
+
+  it('generates valid HTML in content-browser', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+    ]);
+
+    const html = fs.readFileSync(path.join(outDir, 'content-browser.html'), 'utf-8');
+    assert.ok(html.startsWith('<!DOCTYPE html>') || html.startsWith('<html'));
+    assert.ok(html.includes('</html>'));
+    assert.ok(html.includes('blogPost'));
+    assert.ok(html.includes('author'));
+  });
+
+  it('generates valid HTML in visual-report (model graph)', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+    ]);
+
+    const html = fs.readFileSync(path.join(outDir, 'visual-report.html'), 'utf-8');
+    assert.ok(html.startsWith('<!DOCTYPE html>') || html.startsWith('<html'));
+    assert.ok(html.includes('</html>'));
+  });
+
+  it('writes per-CT entry files', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+    ]);
+
+    const entriesDir = path.join(outDir, 'entries');
+    const files = fs.readdirSync(entriesDir);
+    assert.ok(files.includes('blogPost.json'));
+    assert.ok(files.includes('author.json'));
+
+    const blogEntries = JSON.parse(fs.readFileSync(path.join(entriesDir, 'blogPost.json'), 'utf-8'));
+    assert.ok(Array.isArray(blogEntries));
+    assert.ok(blogEntries.length > 0);
+    assert.equal(blogEntries[0].contentType, 'blogPost');
+  });
+
+  it('writes per-CT definition files', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+    ]);
+
+    const ctDir = path.join(outDir, 'content-types');
+    const files = fs.readdirSync(ctDir);
+    assert.ok(files.includes('blogPost.json'));
+    assert.ok(files.includes('author.json'));
+
+    const blogDef = JSON.parse(fs.readFileSync(path.join(ctDir, 'blogPost.json'), 'utf-8'));
+    assert.equal(blogDef.id, 'blogPost');
+    assert.ok(Array.isArray(blogDef.fields));
+  });
+});
+
+// ─── Workflow 2: Migration (with data) ───────────────────────────
+
+describe('CLI: migration workflow (with data)', () => {
+  let outDir;
+
+  afterEach(() => {
+    if (outDir) cleanup(outDir);
+  });
+
+  it('processes NDJSON data with schemas', async () => {
+    outDir = tmpDir();
+    const { stdout } = await cli([
+      `--schemas=${SCHEMAS_DATA_DIR}`,
+      `--input=${DATA_FILE}`,
+      `--output=${outDir}`,
+    ]);
+
+    assert.ok(!stdout.includes('Mock mode'));
+    assert.ok(stdout.includes('Loaded'));
+    assert.ok(stdout.includes('documents'));
+    assert.ok(stdout.includes('Content Types:'));
+
+    // Verify output files
+    assert.ok(fs.existsSync(path.join(outDir, 'manifest.json')));
+    const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf-8'));
+    assert.ok(manifest.stats.totalEntries >= 3); // sample has 5 docs → at least 3 base entries
+    assert.ok(manifest.stats.totalCTs >= 2);
+  });
+
+  it('detects locales from data', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DATA_DIR}`,
+      `--input=${DATA_FILE}`,
+      `--output=${outDir}`,
+    ]);
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf-8'));
+    assert.ok(manifest.stats.totalLocales >= 1);
+  });
+
+  it('writes HTML browser with real data', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DATA_DIR}`,
+      `--input=${DATA_FILE}`,
+      `--output=${outDir}`,
+    ]);
+
+    const html = fs.readFileSync(path.join(outDir, 'content-browser.html'), 'utf-8');
+    assert.ok(html.includes('Hello World') || html.includes('hello-world'));
+    assert.ok(html.includes('blogPost'));
+  });
+
+  it('generates validation report for real data', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DATA_DIR}`,
+      `--input=${DATA_FILE}`,
+      `--output=${outDir}`,
+    ]);
+
+    const report = JSON.parse(fs.readFileSync(path.join(outDir, 'validation-report.json'), 'utf-8'));
+    assert.ok('errors' in report);
+    assert.ok('warnings' in report);
+    assert.ok(Array.isArray(report.errors));
+    assert.ok(Array.isArray(report.warnings));
+  });
+
+  it('supports --base-locale option', async () => {
+    outDir = tmpDir();
+    await cli([
+      `--schemas=${SCHEMAS_DATA_DIR}`,
+      `--input=${DATA_FILE}`,
+      `--output=${outDir}`,
+      '--base-locale=es',
+    ]);
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf-8'));
+    assert.ok(manifest); // Should complete without error
+  });
+});
+
+// ─── Workflow 3: Pull (error handling) ───────────────────────────
+
+describe('CLI: pull error handling', () => {
+  it('fails with missing --space-id and --access-token', async () => {
+    await assert.rejects(
+      () => cli(['pull'], { env: { CONTENTFUL_SPACE_ID: '', CONTENTFUL_ACCESS_TOKEN: '' } }),
+      (err) => {
+        const output = (err.stderr || '') + (err.stdout || '');
+        assert.ok(output.includes('Missing') || output.includes('error') || output.includes('Fatal'));
+        return true;
+      }
+    );
+  });
+
+  it('fails with missing --access-token', async () => {
+    await assert.rejects(
+      () => cli(['pull', '--space-id=test123'], { env: { CONTENTFUL_ACCESS_TOKEN: '' } }),
+      (err) => {
+        const output = (err.stderr || '') + (err.stdout || '');
+        assert.ok(output.includes('Missing') || output.includes('access-token'));
+        return true;
+      }
+    );
+  });
+});
+
+// ─── Verbose mode ────────────────────────────────────────────────
+
+describe('CLI: verbose mode', () => {
+  let outDir;
+
+  afterEach(() => {
+    if (outDir) cleanup(outDir);
+  });
+
+  it('shows additional output with --verbose', async () => {
+    outDir = tmpDir();
+    const { stdout } = await cli([
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+      '--verbose',
+    ]);
+
+    assert.ok(stdout.includes('Content Types:'));
+    // Verbose should still work and produce output
+    assert.ok(fs.existsSync(path.join(outDir, 'manifest.json')));
+  });
+});
