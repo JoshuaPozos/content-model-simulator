@@ -202,7 +202,16 @@ function readNDJSONSync(filePath: string): Document[] {
   return documents;
 }
 
+const FILE_SIZE_WARNING_BYTES = 100 * 1024 * 1024; // 100 MB
+
 function readJSONArray(filePath: string): Document[] {
+  const size = fs.statSync(filePath).size;
+  if (size > FILE_SIZE_WARNING_BYTES) {
+    console.warn(
+      `Warning: ${filePath} is ${(size / 1024 / 1024).toFixed(0)} MB. ` +
+      `Consider converting to NDJSON for streaming reads.`
+    );
+  }
   const content = fs.readFileSync(filePath, 'utf-8');
   const parsed = JSON.parse(content);
   if (!Array.isArray(parsed)) {

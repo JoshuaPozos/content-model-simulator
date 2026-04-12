@@ -26,6 +26,15 @@ import fs from 'fs';
 import path from 'path';
 import type { ContentTypeDefinition } from '../types.js';
 
+/** Verify a resolved file path stays within the expected base directory. */
+function ensureWithinDir(baseDir: string, filePath: string): void {
+  const resolved = fs.realpathSync(filePath);
+  const base = fs.realpathSync(baseDir);
+  if (!resolved.startsWith(base + path.sep) && resolved !== base) {
+    throw new Error(`Security: ${filePath} resolves outside the allowed directory ${baseDir}`);
+  }
+}
+
 export class SchemaRegistry {
   #definitions = new Map<string, ContentTypeDefinition>();
 
@@ -61,6 +70,7 @@ export class SchemaRegistry {
     for (const file of files.sort()) {
       const filePath = path.join(resolvedDir, file);
       try {
+        ensureWithinDir(resolvedDir, filePath);
         if (file.endsWith('.json')) {
           const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
           if (Array.isArray(content)) {

@@ -42,8 +42,11 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry deduplication**: automatically removes duplicate entries with same `id+locale` composite key. Emits `DUPLICATE_ENTRY_REMOVED` warning with count. Runs as post-processing step before locale inheritance.
 - **Plugin system** (`--plugins=<dir>`): auto-discovers `schemas/` and `transforms/` subdirectories, and loads root-level `.js` files with `setup({ schemas, transformers })` function. Works in both `simulate` and `validate` subcommands.
 - **Custom HTML templates** (`--template-css`, `--template-head`): inject custom CSS and `<head>` content into content browser and model graph HTML output. Enables branding, custom fonts, and styling overrides.
+- **`SECURITY.md`**: consolidated security documentation covering threat model, resolved vulnerabilities, accepted risks, and supply chain.
 
 ### Fixed
+- **Dynamic `import()` path containment** (CWE-94): `realpathSync()` check ensures schema, transform, and plugin files resolve within the specified directory (prevents symlink escape)
+- **JSON.parse file size warning** (CWE-400): emits warning for JSON array files >100 MB recommending NDJSON streaming format
 - Skip `internalName` in validator (false positive warnings)
 - Pull duplicate `limit` param, early exit on `maxEntries`, double-slash in CLI next steps
 - Auto-detect locales from data when `--locales` not specified

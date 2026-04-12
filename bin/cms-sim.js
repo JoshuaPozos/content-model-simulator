@@ -9,8 +9,8 @@
  *   cms-sim --help
  */
 
-import { readFileSync, existsSync, mkdirSync, writeFileSync, watch as fsWatch, statSync } from 'node:fs';
-import { resolve, join, basename, extname } from 'node:path';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, watch as fsWatch, statSync, realpathSync } from 'node:fs';
+import { resolve, join, basename, extname, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 
 import { readDocuments } from '../dist/core/reader.js';
@@ -28,6 +28,15 @@ const c = {
   red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m',
   blue: '\x1b[34m', cyan: '\x1b[36m',
 };
+
+/** Verify a resolved file path stays within the expected base directory (prevents symlink escape). */
+function ensureWithinDir(baseDir, filePath) {
+  const resolved = realpathSync(filePath);
+  const base = realpathSync(baseDir);
+  if (!resolved.startsWith(base + sep) && resolved !== base) {
+    throw new Error(`Security: ${filePath} resolves outside the allowed directory ${baseDir}`);
+  }
+}
 
 // ── Arg parsing ──────────────────────────────────────────────────
 function parseArgs(argv) {
@@ -276,7 +285,9 @@ async function runSimulation(args) {
       const { readdirSync } = await import('node:fs');
       const files = readdirSync(transformsPath).filter(f => /\.(js|mjs)$/.test(f));
       for (const file of files) {
-        const mod = await import(join(transformsPath, file));
+        const fullPath = join(transformsPath, file);
+        ensureWithinDir(transformsPath, fullPath);
+        const mod = await import(fullPath);
         if (typeof mod.register === 'function') {
           mod.register(transformers);
         }
@@ -309,7 +320,9 @@ async function runSimulation(args) {
     if (existsSync(pluginTransforms)) {
       const tFiles = readdirSync(pluginTransforms).filter(f => /\.(js|mjs)$/.test(f));
       for (const file of tFiles) {
-        const mod = await import(join(pluginTransforms, file));
+        const fullPath = join(pluginTransforms, file);
+        ensureWithinDir(pluginsPath, fullPath);
+        const mod = await import(fullPath);
         if (typeof mod.register === 'function') {
           mod.register(transformers);
         }
@@ -321,7 +334,9 @@ async function runSimulation(args) {
     // Load root-level .js files with setup() function
     const rootFiles = readdirSync(pluginsPath).filter(f => /\.(js|mjs)$/.test(f));
     for (const file of rootFiles) {
-      const mod = await import(join(pluginsPath, file));
+      const fullPath = join(pluginsPath, file);
+      ensureWithinDir(pluginsPath, fullPath);
+      const mod = await import(fullPath);
       if (typeof mod.setup === 'function') {
         await mod.setup({ schemas, transformers });
         pluginCount++;
@@ -872,7 +887,9 @@ ${c.cyan}EXAMPLES:${c.reset}
       const { readdirSync } = await import('node:fs');
       const files = readdirSync(transformsPath).filter(f => /\.(js|mjs)$/.test(f));
       for (const file of files) {
-        const mod = await import(join(transformsPath, file));
+        const fullPath = join(transformsPath, file);
+        ensureWithinDir(transformsPath, fullPath);
+        const mod = await import(fullPath);
         if (typeof mod.register === 'function') {
           mod.register(transformers);
         }
@@ -890,12 +907,16 @@ ${c.cyan}EXAMPLES:${c.reset}
       const pluginTransforms = join(pluginsPath, 'transforms');
       if (existsSync(pluginTransforms)) {
         for (const f of readdirSync(pluginTransforms).filter(f => /\.(js|mjs)$/.test(f))) {
-          const mod = await import(join(pluginTransforms, f));
+          const fullPath = join(pluginTransforms, f);
+          ensureWithinDir(pluginsPath, fullPath);
+          const mod = await import(fullPath);
           if (typeof mod.register === 'function') mod.register(transformers);
         }
       }
       for (const f of readdirSync(pluginsPath).filter(f => /\.(js|mjs)$/.test(f))) {
-        const mod = await import(join(pluginsPath, f));
+        const fullPath = join(pluginsPath, f);
+        ensureWithinDir(pluginsPath, fullPath);
+        const mod = await import(fullPath);
         if (typeof mod.setup === 'function') await mod.setup({ schemas, transformers });
       }
     }
