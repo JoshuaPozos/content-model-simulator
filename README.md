@@ -2,68 +2,124 @@
 
 Preview your Contentful content model locally — **zero API calls, zero dependencies**.
 
-Simulate how your content types, entries, and assets will look in Contentful without uploading anything. Perfect for prototyping content structures, reviewing migrations, and validating schemas before deploying to Contentful.
+Simulate how your content types, entries, and assets will look in Contentful without uploading anything. Works for both **designing content models from scratch** and **simulating migrations from other CMSs**.
 
 ## Features
 
 - **Zero dependencies** — pure Node.js (≥ 18), nothing to install beyond the package
+- **Two workflows** — preview content models from scratch (auto-generated mock data) or simulate migrations with real data
 - **Interactive Content Browser** — replica of the Contentful UI to browse entries, filter by type/locale, inspect fields, follow references
 - **Content Model Graph** — SVG-based interactive diagram showing content types, fields, and relationships with pan/zoom/drag
-- **Contentful Validation** — catches the same errors Contentful would reject: missing required fields, unknown fields, unresolved links, and more
+- **Mock Data Generator** — auto-generates realistic sample entries from your schemas with field-type-aware values
+- **Contentful Validation** — catches the same errors Contentful would reject: missing required fields, unknown fields, unresolved links
 - **Contentful Schema Format** — uses the exact Contentful content type definition format (Symbol, Text, RichText, Link, Array, etc.)
 - **Universal Reader** — reads NDJSON, JSON arrays, or directories of JSON files
-- **Generic Transformer** — 1:1 field mapping that handles 99% of content types out of the box
+- **CMS Migration Guides** — step-by-step stubs for WordPress, Sanity, DatoCMS, Strapi, Contentstack, Prismic, Hygraph, Bloomreach
 - **Extensible** — register custom transformers, asset detectors, and nested object extractors
 
 ## Quick Start
 
 ```bash
-# Install
 npm install content-model-simulator
-
-# Run via CLI
-npx cms-sim --input=data/export.ndjson --schemas=schemas/ --open
 ```
 
-## CLI Usage
+### Workflow 1: Preview a content model (no data needed)
 
-```
-cms-sim --input=<path> --schemas=<dir> [options]
-
-REQUIRED:
-  --input=<path>        Source data (NDJSON file, JSON file, or directory)
-  --schemas=<dir>       Content type definitions directory (.js/.mjs/.json)
-
-OPTIONS:
-  --transforms=<dir>    Custom transformer modules directory
-  --config=<file>       JSON config file (cms-sim.config.json)
-  --output=<dir>        Output directory (default: ./output/<name>_<timestamp>)
-  --name=<string>       Project name (default: derived from input filename)
-  --base-locale=<code>  Base locale (default: en)
-  --locale-map=<file>   JSON file mapping source → target locale codes
-  --json                JSON output only (skip HTML generation)
-  --open                Auto-open HTML report in browser
-  --verbose, -v         Verbose logging
-  --help, -h            Show help
-```
-
-### Examples
+Define your Contentful content types and instantly see how they'll look — the simulator generates realistic mock entries for you.
 
 ```bash
-# Simulate from NDJSON export
-cms-sim --input=data/bloomreach-export.ndjson --schemas=schemas/
+# Just point at your schemas directory
+npx cms-sim --schemas=schemas/ --open
 
-# With custom output directory and auto-open
-cms-sim --input=data/ --schemas=schemas/ --name=homepage --output=out/test --open
+# With multiple locales
+npx cms-sim --schemas=schemas/ --locales=en,es,fr --open
 
-# JSON-only output (no HTML)
-cms-sim --input=data/export.json --schemas=schemas/ --json
+# More sample entries per type
+npx cms-sim --schemas=schemas/ --entries-per-type=10 --open
+```
 
-# With config file
-cms-sim --config=cms-sim.config.json
+### Workflow 2: Simulate a migration (with source data)
+
+Feed real data from another CMS alongside your Contentful schemas to preview how the migration will look.
+
+```bash
+# From NDJSON export
+npx cms-sim --schemas=schemas/ --input=data/export.ndjson --open
+
+# With custom transformers for the source CMS format
+npx cms-sim --schemas=schemas/ --input=data/ --transforms=transforms/ --open
+
+# With locale mapping
+npx cms-sim --schemas=schemas/ --input=data/ --locale-map=locales.json --verbose --open
+```
+
+## CLI Reference
+
+```
+cms-sim --schemas=<dir> [options]                  # Preview content model
+cms-sim --schemas=<dir> --input=<path> [options]   # Simulate migration
+
+REQUIRED:
+  --schemas=<dir>        Content type definitions directory (.js/.mjs/.json)
+
+DATA SOURCE (optional):
+  --input=<path>         Source data (NDJSON, JSON, or directory)
+                         If omitted, mock entries are auto-generated from schemas
+
+OPTIONS:
+  --transforms=<dir>     Custom transformer modules directory
+  --config=<file>        JSON config file (cms-sim.config.json)
+  --output=<dir>         Output directory (default: ./output/<name>_<timestamp>)
+  --name=<string>        Project name (default: derived from input or schemas dir)
+  --base-locale=<code>   Base locale (default: en)
+  --locales=<list>       Comma-separated locale codes (default: base locale only)
+  --locale-map=<file>    JSON file mapping source → target locale codes
+  --entries-per-type=<n> Mock entries per content type (default: 3, only without --input)
+  --format=<fmt>         Input format: ndjson, json, dir (default: auto-detect)
+  --json                 JSON output only (skip HTML generation)
+  --open                 Auto-open HTML report in browser
+  --verbose, -v          Verbose logging
+  --help, -h             Show help
 ```
 
 ## Programmatic API
+
+### From scratch (mock data)
+
+```js
+import {
+  simulate,
+  generateMockData,
+  SchemaRegistry,
+  TransformerRegistry,
+  generateContentBrowserHTML,
+  writeReport,
+} from 'content-model-simulator';
+
+// 1. Load schemas
+const schemas = new SchemaRegistry();
+await schemas.loadFromDirectory('./schemas');
+
+// 2. Generate mock entries
+const { documents } = generateMockData(schemas.all(), {
+  entriesPerType: 5,
+  baseLocale: 'en',
+  locales: ['en', 'es'],
+});
+
+// 3. Simulate
+const report = simulate({
+  documents,
+  schemas,
+  transformers: new TransformerRegistry(),
+  options: { name: 'my-model', baseLocale: 'en', locales: ['en', 'es'] },
+});
+
+// 4. Output
+writeReport(report, './output/my-model');
+```
+
+### With real data (migration)
 
 ```js
 import {
@@ -235,6 +291,21 @@ The `simulate()` function returns a report with this shape:
   },
 }
 ```
+
+## CMS Migration Guides
+
+Step-by-step guides for migrating from popular CMSs. Each guide covers exporting data, mapping schemas, writing custom transformers, and simulating the migration.
+
+| Source CMS | Guide |
+|------------|-------|
+| WordPress | [examples/migration-guides/wordpress/](examples/migration-guides/wordpress/) |
+| Sanity | [examples/migration-guides/sanity/](examples/migration-guides/sanity/) |
+| DatoCMS | [examples/migration-guides/datocms/](examples/migration-guides/datocms/) |
+| Strapi | [examples/migration-guides/strapi/](examples/migration-guides/strapi/) |
+| Contentstack | [examples/migration-guides/contentstack/](examples/migration-guides/contentstack/) |
+| Prismic | [examples/migration-guides/prismic/](examples/migration-guides/prismic/) |
+| Hygraph (GraphCMS) | [examples/migration-guides/hygraph/](examples/migration-guides/hygraph/) |
+| Bloomreach | [examples/migration-guides/bloomreach/](examples/migration-guides/bloomreach/) |
 
 ## License
 

@@ -16,6 +16,7 @@ import { readDocuments } from '../src/core/reader.js';
 import { SchemaRegistry } from '../src/core/schema-registry.js';
 import { TransformerRegistry } from '../src/transform/transformer.js';
 import { simulate } from '../src/core/simulator.js';
+import { generateMockData } from '../src/core/mock-generator.js';
 import { generateContentBrowserHTML } from '../src/output/content-browser.js';
 import { generateModelGraphHTML } from '../src/output/model-graph.js';
 import { writeReport } from '../src/output/json-writer.js';
@@ -37,7 +38,9 @@ function parseArgs(argv) {
     output: null,
     name: null,
     baseLocale: 'en',
+    locales: null,
     localeMap: null,
+    entriesPerType: null,
     format: 'ndjson',
     open: false,
     verbose: false,
@@ -64,7 +67,9 @@ function parseArgs(argv) {
       case 'output': args.output = val; break;
       case 'name': args.name = val; break;
       case 'base-locale': args.baseLocale = val; break;
+      case 'locales': args.locales = val; break;
       case 'locale-map': args.localeMap = val; break;
+      case 'entries-per-type': args.entriesPerType = parseInt(val, 10) || null; break;
       case 'format': args.format = val; break;
     }
   }
@@ -74,24 +79,30 @@ function parseArgs(argv) {
 function showHelp() {
   console.log(`
 ${c.bold}Content Model Simulator${c.reset}
-Simulate content model migrations locally — zero API calls.
+Preview your Contentful content model locally — zero API calls.
 
 ${c.cyan}USAGE:${c.reset}
-  cms-sim --input=<path> --schemas=<dir> [options]
+  cms-sim --schemas=<dir> [options]                  ${c.dim}Preview content model${c.reset}
+  cms-sim --schemas=<dir> --input=<path> [options]   ${c.dim}Simulate migration${c.reset}
 
 ${c.cyan}REQUIRED:${c.reset}
+  --schemas=<dir>       Directory containing Contentful content type definitions
+                        Supports: .js, .mjs, .json files
+
+${c.cyan}DATA SOURCE (optional):${c.reset}
   --input=<path>        Source data file or directory
                         Supports: .ndjson, .json, directory of .json files
-  --schemas=<dir>       Directory containing content type definitions
-                        Supports: .js, .mjs, .json files
+                        ${c.dim}If omitted, mock entries are auto-generated from schemas${c.reset}
 
 ${c.cyan}OPTIONS:${c.reset}
   --transforms=<dir>    Directory with custom transformer modules
-  --config=<file>       Configuration file (JSON) with locale-map, options, etc.
+  --config=<file>       Configuration file (JSON)
   --output=<dir>        Custom output directory (default: ./output/<name>_<timestamp>)
-  --name=<string>       Project / page name (default: derived from input)
+  --name=<string>       Project name (default: derived from input or schemas dir)
   --base-locale=<code>  Base locale code (default: en)
-  --locale-map=<file>   JSON file mapping source locale keys → target locale codes
+  --locales=<list>      Comma-separated locale codes (default: base locale only)
+  --locale-map=<file>   JSON file mapping source → target locale codes
+  --entries-per-type=<n> Mock entries per content type (default: 3, only without --input)
   --format=<fmt>        Input format: ndjson, json, dir (default: auto-detect)
   --json                Write JSON output only (skip HTML)
   --open                Auto-open HTML report in browser
@@ -99,10 +110,13 @@ ${c.cyan}OPTIONS:${c.reset}
   --help, -h            Show this help
 
 ${c.cyan}EXAMPLES:${c.reset}
-  cms-sim --input=data/export.ndjson --schemas=schemas/
-  cms-sim --input=data/ --schemas=schemas/ --name=homepage --open
-  cms-sim --input=data/export.json --schemas=schemas/ --output=out/test-1
-  cms-sim --input=data/ --schemas=schemas/ --config=cms-sim.config.json
+  ${c.dim}# Preview content model (no data needed)${c.reset}
+  cms-sim --schemas=schemas/ --open
+  cms-sim --schemas=schemas/ --locales=en,es,fr --name=my-project
+
+  ${c.dim}# Simulate migration with real data${c.reset}
+  cms-sim --schemas=schemas/ --input=data/export.ndjson --open
+  cms-sim --schemas=schemas/ --input=data/ --transforms=transforms/ --verbose
 `);
 }
 
@@ -112,21 +126,17 @@ async function main() {
 
   if (args.help) { showHelp(); process.exit(0); }
 
-  if (!args.input) {
-    console.error(`${c.red}Error: --input is required${c.reset}`);
-    showHelp();
-    process.exit(1);
-  }
   if (!args.schemas) {
     console.error(`${c.red}Error: --schemas is required${c.reset}`);
     showHelp();
     process.exit(1);
   }
 
-  const inputPath = resolve(args.input);
   const schemasPath = resolve(args.schemas);
+  const inputPath = args.input ? resolve(args.input) : null;
+  const isMockMode = !inputPath;
 
-  if (!existsSync(inputPath)) {
+  if (inputPath && !existsSync(inputPath)) {
     console.error(`${c.red}Error: Input not found: ${inputPath}${c.reset}`);
     process.exit(1);
   }
@@ -148,33 +158,55 @@ async function main() {
   }
 
   // Header
-  const projectName = args.name || config.name || basename(inputPath, extname(inputPath));
+  const projectName = args.name || config.name
+    || (inputPath ? basename(inputPath, extname(inputPath)) : basename(schemasPath));
   console.log(`\n${c.cyan}${'═'.repeat(68)}${c.reset}`);
   console.log(`${c.bold}Content Model Simulator: ${projectName}${c.reset}`);
   console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
-  console.log(`${c.dim}Local mode — 0 API calls${c.reset}\n`);
+  console.log(`${c.dim}Local mode — 0 API calls${c.reset}`);
+  if (isMockMode) console.log(`${c.dim}Mock mode — generating sample entries from schemas${c.reset}`);
+  console.log('');
 
-  // ── Step 1: Read documents ──────────────────────────────────
-  if (args.verbose) console.log(`${c.dim}Reading documents from ${inputPath}...${c.reset}`);
-  const documents = await readDocuments(inputPath, { format: args.format });
-  console.log(`${c.green}✓${c.reset} Loaded ${c.bold}${documents.length}${c.reset} documents\n`);
-
-  if (documents.length === 0) {
-    console.log(`${c.yellow}⚠ No documents found. Check your input path.${c.reset}`);
-    process.exit(0);
-  }
-
-  // ── Step 2: Load schemas ────────────────────────────────────
+  // ── Step 1: Load schemas ────────────────────────────────────
   const schemas = new SchemaRegistry();
   await schemas.loadFromDirectory(schemasPath);
   console.log(`${c.green}✓${c.reset} Loaded ${c.bold}${schemas.size}${c.reset} content type definitions\n`);
+
+  // ── Step 2: Read or generate documents ──────────────────────
+  let documents;
+  const baseLocale = args.baseLocale || config.baseLocale || 'en';
+  const locales = args.locales
+    ? args.locales.split(',').map(l => l.trim())
+    : (config.locales || [baseLocale]);
+
+  if (inputPath) {
+    if (args.verbose) console.log(`${c.dim}Reading documents from ${inputPath}...${c.reset}`);
+    documents = await readDocuments(inputPath, { format: args.format });
+    console.log(`${c.green}✓${c.reset} Loaded ${c.bold}${documents.length}${c.reset} documents\n`);
+
+    if (documents.length === 0) {
+      console.log(`${c.yellow}⚠ No documents found. Check your input path.${c.reset}`);
+      process.exit(0);
+    }
+  } else {
+    // Mock mode — generate sample entries from schemas
+    const entriesPerType = args.entriesPerType || config.entriesPerType || 3;
+    const allSchemas = schemas.getAll();
+    const mockResult = generateMockData(allSchemas, {
+      entriesPerType,
+      baseLocale,
+      locales,
+      name: projectName,
+    });
+    documents = mockResult.documents;
+    console.log(`${c.green}✓${c.reset} Generated ${c.bold}${documents.length}${c.reset} mock entries (${entriesPerType}/type)\n`);
+  }
 
   // ── Step 3: Load custom transformers ────────────────────────
   const transformers = new TransformerRegistry();
   if (args.transforms) {
     const transformsPath = resolve(args.transforms);
     if (existsSync(transformsPath)) {
-      // Dynamic import each .js/.mjs file in the transforms directory
       const { readdirSync } = await import('node:fs');
       const files = readdirSync(transformsPath).filter(f => /\.(js|mjs)$/.test(f));
       for (const file of files) {
@@ -205,8 +237,8 @@ async function main() {
     transformers,
     options: {
       name: projectName,
-      baseLocale: args.baseLocale || config.baseLocale || 'en',
-      locales: config.locales || null,
+      baseLocale,
+      locales,
       localeMap,
       fieldGroupMap: config.fieldGroupMap || null,
       isAsset: config.isAsset ? new Function('return ' + config.isAsset)() : undefined,

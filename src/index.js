@@ -9,6 +9,7 @@ export { simulate } from './core/simulator.js';
 export { readDocuments, readDocumentsSync, filterByContentType, filterByLocale, filterByPath, getDocumentStats } from './core/reader.js';
 export { SchemaRegistry } from './core/schema-registry.js';
 export { validateEntry, validateAll } from './core/validator.js';
+export { generateMockData } from './core/mock-generator.js';
 
 // ── Transform ────────────────────────────────────────────────────
 export { transformGeneric, TransformerRegistry } from './transform/transformer.js';
