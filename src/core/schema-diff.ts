@@ -9,7 +9,7 @@ import type { ContentTypeDefinition, ContentTypeField } from '../types.js';
 
 // ── Types ────────────────────────────────────────────────────────
 
-export type ChangeKind = 'added' | 'removed' | 'changed';
+export type ChangeKind = 'added' | 'removed' | 'changed' | 'reordered';
 
 export interface FieldChange {
   fieldId: string;
@@ -110,6 +110,26 @@ function diffFields(oldFields: ContentTypeField[], newFields: ContentTypeField[]
     }
   }
 
+  // Detect field reordering among fields that exist in both
+  const oldOrder = oldFields.filter(f => newMap.has(f.id)).map(f => f.id);
+  const newOrder = newFields.filter(f => oldMap.has(f.id)).map(f => f.id);
+  if (oldOrder.length > 1 && oldOrder.join(',') !== newOrder.join(',')) {
+    // Find which fields actually moved
+    for (let i = 0; i < newOrder.length; i++) {
+      const oldIdx = oldOrder.indexOf(newOrder[i]);
+      if (oldIdx !== i) {
+        // Only add if not already marked as added/removed/changed
+        if (!changes.some(c => c.fieldId === newOrder[i])) {
+          changes.push({
+            fieldId: newOrder[i],
+            kind: 'reordered',
+            details: `position: ${oldIdx + 1} → ${i + 1}`,
+          });
+        }
+      }
+    }
+  }
+
   return changes;
 }
 
@@ -149,7 +169,7 @@ export function formatDiff(result: SchemaDiffResult, { color = true } = {}): str
     lines.push(`${icon} ${c.bold}${ct.contentTypeId}${c.reset} (${ct.kind})`);
 
     for (const fc of ct.fieldChanges) {
-      const fIcon = fc.kind === 'added' ? `${c.green}  +` : fc.kind === 'removed' ? `${c.red}  -` : `${c.yellow}  ~`;
+      const fIcon = fc.kind === 'added' ? `${c.green}  +` : fc.kind === 'removed' ? `${c.red}  -` : fc.kind === 'reordered' ? `${c.cyan}  ↕` : `${c.yellow}  ~`;
       const detail = fc.details ? ` ${c.dim}(${fc.details})${c.reset}` : '';
       lines.push(`${fIcon} ${fc.fieldId}${c.reset}${detail}`);
     }

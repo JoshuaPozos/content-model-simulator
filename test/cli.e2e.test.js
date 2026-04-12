@@ -471,6 +471,68 @@ describe('CLI: validate subcommand', () => {
   });
 });
 
+// ─── Init sub-command ────────────────────────────────────────────
+
+describe('CLI: init subcommand', () => {
+  let initDir;
+
+  afterEach(() => {
+    if (initDir && fs.existsSync(initDir)) {
+      fs.rmSync(initDir, { recursive: true, force: true });
+    }
+  });
+
+  it('shows help with init --help', async () => {
+    const { stdout } = await cli(['init', '--help']);
+    assert.ok(stdout.includes('Init'));
+    assert.ok(stdout.includes('Scaffold'));
+    assert.ok(stdout.includes('schemas'));
+  });
+
+  it('creates project with default name', async () => {
+    initDir = path.join(os.tmpdir(), 'cms-sim-init-test-' + Date.now());
+    // Use a unique name to avoid conflicts
+    const name = 'test-init-' + Date.now();
+    initDir = path.resolve(name);
+    const { stdout } = await cli(['init', name]);
+    assert.ok(stdout.includes('Project created'));
+    assert.ok(fs.existsSync(path.join(initDir, 'schemas', 'blogPost.js')));
+    assert.ok(fs.existsSync(path.join(initDir, 'schemas', 'author.js')));
+    assert.ok(fs.existsSync(path.join(initDir, 'README.md')));
+  });
+
+  it('fails if directory already exists', async () => {
+    const name = 'test-init-dup-' + Date.now();
+    initDir = path.resolve(name);
+    fs.mkdirSync(initDir, { recursive: true });
+    await assert.rejects(
+      () => cli(['init', name]),
+      (err) => {
+        const output = (err.stderr || '') + (err.stdout || '');
+        assert.ok(output.includes('already exists'));
+        return true;
+      }
+    );
+  });
+
+  it('created schemas can be simulated', async () => {
+    const name = 'test-init-sim-' + Date.now();
+    initDir = path.resolve(name);
+    await cli(['init', name]);
+    const outDir = tmpDir();
+    try {
+      const { stdout } = await cli([
+        `--schemas=${path.join(initDir, 'schemas')}`,
+        `--output=${outDir}`,
+      ]);
+      assert.ok(stdout.includes('Content Types:'));
+      assert.ok(stdout.includes('Entries:'));
+    } finally {
+      cleanup(outDir);
+    }
+  });
+});
+
 // ─── Pull preview 401 token warning ─────────────────────────────
 
 describe('CLI: pull preview 401 detection', () => {

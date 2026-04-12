@@ -368,4 +368,22 @@ describe('locale inheritance', () => {
     // The fr entry should have its own title
     assert.equal(frEntry.fields.title?.en, 'Bonjour');
   });
+
+  it('emits MISSING_BASE_LOCALE_ENTRY warning when base entry is missing', () => {
+    const docs = [
+      // Only fr exists, no 'en' base entry
+      { id: 'a2', contentType: 'article', locale: 'fr', path: '/art/2', fields: { title: 'Bonjour' } },
+    ];
+    const report = simulate({
+      documents: docs,
+      schemas: { article: localizedDef },
+      options: { baseLocale: 'en', locales: ['en', 'fr'] },
+    });
+
+    const warning = report.warnings.find(w => w.type === 'MISSING_BASE_LOCALE_ENTRY');
+    assert.ok(warning, 'Expected MISSING_BASE_LOCALE_ENTRY warning');
+    assert.ok(warning.message.includes('fr'));
+    assert.ok(warning.message.includes('en'));
+    assert.equal(warning.contentType, 'article');
+  });
 });

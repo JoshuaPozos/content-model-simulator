@@ -87,6 +87,7 @@ Runs 100% offline. Does not upload or migrate anything.
 
 ${c.cyan}COMMANDS:${c.reset}
   cms-sim [options]              ${c.dim}Run local simulation (default)${c.reset}
+  cms-sim init [<name>]          ${c.dim}Scaffold a new project${c.reset}
   cms-sim pull [options]         ${c.dim}Download content model from Contentful${c.reset}
   cms-sim diff --old=A --new=B   ${c.dim}Compare two schema directories${c.reset}
   cms-sim validate [options]     ${c.dim}Validate schemas + data (no HTML output)${c.reset}
@@ -833,11 +834,193 @@ ${c.cyan}EXAMPLES:${c.reset}
   }
 }
 
+// ── Init sub-command ─────────────────────────────────────────────
+function initMain(argv) {
+  const args = { name: null, help: false };
+
+  for (const arg of argv) {
+    if (arg === '--help' || arg === '-h') { args.help = true; continue; }
+    const eq = arg.indexOf('=');
+    if (eq !== -1) {
+      const key = arg.startsWith('--') ? arg.substring(2, eq) : arg.substring(0, eq);
+      if (key === 'name') args.name = arg.substring(eq + 1);
+    } else if (!arg.startsWith('-') && !args.name) {
+      args.name = arg;
+    }
+  }
+
+  if (args.help) {
+    console.log(`
+${c.bold}Content Model Simulator — Init${c.reset}
+Scaffold a new content model project with example schemas.
+
+${c.cyan}USAGE:${c.reset}
+  cms-sim init [<name>] [options]
+
+${c.cyan}ARGUMENTS:${c.reset}
+  <name>                Project directory name (default: my-content-model)
+
+${c.cyan}OPTIONS:${c.reset}
+  --name=<string>       Project name (alternative to positional argument)
+  --help, -h            Show this help
+
+${c.cyan}EXAMPLES:${c.reset}
+  ${c.dim}# Create with default name${c.reset}
+  cms-sim init
+
+  ${c.dim}# Create with custom name${c.reset}
+  cms-sim init my-blog
+
+${c.cyan}WHAT IT CREATES:${c.reset}
+  <name>/
+  ├── schemas/
+  │   ├── blogPost.js       ${c.dim}Example content type${c.reset}
+  │   └── author.js         ${c.dim}Example content type${c.reset}
+  └── README.md             ${c.dim}Quick-start guide${c.reset}
+`);
+    process.exit(0);
+  }
+
+  const projectName = args.name || 'my-content-model';
+  const safeName = projectName.replace(/[^a-zA-Z0-9_.-]/g, '-');
+  const projectDir = resolve(safeName);
+
+  if (existsSync(projectDir)) {
+    console.error(`${c.red}Error: Directory already exists: ${safeName}/${c.reset}`);
+    console.error(`${c.dim}Choose a different name or remove the existing directory.${c.reset}`);
+    process.exit(1);
+  }
+
+  const schemasDir = join(projectDir, 'schemas');
+  mkdirSync(schemasDir, { recursive: true });
+
+  // Write example schemas
+  const blogPostSchema = `/**
+ * Blog Post content type
+ *
+ * Edit this file to match your content model, then run:
+ *   cms-sim --schemas=schemas/ --open
+ */
+export default {
+  id: 'blogPost',
+  name: 'Blog Post',
+  displayField: 'title',
+  fields: [
+    { id: 'title', name: 'Title', type: 'Symbol', required: true, localized: true },
+    { id: 'slug', name: 'Slug', type: 'Symbol', required: true },
+    { id: 'body', name: 'Body', type: 'RichText', required: true, localized: true },
+    { id: 'excerpt', name: 'Excerpt', type: 'Text', localized: true },
+    { id: 'author', name: 'Author', type: 'Link', linkType: 'Entry' },
+    { id: 'publishDate', name: 'Publish Date', type: 'Date', required: true },
+    { id: 'heroImage', name: 'Hero Image', type: 'Link', linkType: 'Asset' },
+    { id: 'category', name: 'Category', type: 'Symbol', validations: [{ in: ['Tech', 'Design', 'Business', 'Lifestyle'] }] },
+    { id: 'tags', name: 'Tags', type: 'Array', items: { type: 'Symbol' } },
+    { id: 'relatedPosts', name: 'Related Posts', type: 'Array', items: { type: 'Link', linkType: 'Entry' } },
+  ],
+};
+`;
+
+  const authorSchema = `/**
+ * Author content type
+ */
+export default {
+  id: 'author',
+  name: 'Author',
+  displayField: 'name',
+  fields: [
+    { id: 'name', name: 'Name', type: 'Symbol', required: true },
+    { id: 'bio', name: 'Bio', type: 'Text', localized: true },
+    { id: 'avatar', name: 'Avatar', type: 'Link', linkType: 'Asset' },
+    { id: 'email', name: 'Email', type: 'Symbol' },
+  ],
+};
+`;
+
+  const readme = `# ${projectName}
+
+Content model project created with [content-model-simulator](https://github.com/JoshuaPozos/content-model-simulator).
+
+## Quick Start
+
+\`\`\`bash
+# Preview your content model (generates mock data automatically)
+npx cms-sim --schemas=schemas/ --open
+
+# Preview with multiple locales
+npx cms-sim --schemas=schemas/ --locales=en,es,fr --open
+
+# Watch for changes (auto-reload on save)
+npx cms-sim --schemas=schemas/ --watch --open
+
+# Validate schemas (CI-friendly)
+npx cms-sim validate --schemas=schemas/
+\`\`\`
+
+## Adding Content Types
+
+Create a new \`.js\` file in \`schemas/\` with this structure:
+
+\`\`\`js
+export default {
+  id: 'myContentType',
+  name: 'My Content Type',
+  displayField: 'title',
+  fields: [
+    { id: 'title', name: 'Title', type: 'Symbol', required: true },
+    // See README for all field types
+  ],
+};
+\`\`\`
+
+## Supported Field Types
+
+| Type | Description |
+|------|-------------|
+| \`Symbol\` | Short text (max 256 chars) |
+| \`Text\` | Long text |
+| \`RichText\` | Rich text (Contentful format) |
+| \`Integer\` | Whole number |
+| \`Number\` | Decimal number |
+| \`Date\` | ISO 8601 date |
+| \`Boolean\` | True/false |
+| \`Object\` | Arbitrary JSON |
+| \`Location\` | Lat/lon coordinates |
+| \`Link\` | Reference to Entry or Asset (\`linkType: 'Entry'\\|'Asset'\`) |
+| \`Array\` | Array of values (\`items: { type: ... }\`) |
+
+## Next Steps
+
+- Edit schemas in \`schemas/\` to match your content model
+- Run \`cms-sim --schemas=schemas/ --open\` to preview
+- Use \`cms-sim pull --space-id=XXX --access-token=YYY\` to download from an existing Contentful space
+- Use \`cms-sim diff --old=schemas-v1/ --new=schemas-v2/\` to compare schema changes
+`;
+
+  writeFileSync(join(schemasDir, 'blogPost.js'), blogPostSchema);
+  writeFileSync(join(schemasDir, 'author.js'), authorSchema);
+  writeFileSync(join(projectDir, 'README.md'), readme);
+
+  console.log(`
+${c.green}${c.bold}✓ Project created: ${safeName}/${c.reset}
+
+  ${c.dim}${safeName}/${c.reset}
+  ├── schemas/
+  │   ├── blogPost.js
+  │   └── author.js
+  └── README.md
+
+${c.cyan}Next steps:${c.reset}
+  cd ${safeName}
+  npx cms-sim --schemas=schemas/ --open
+`);
+}
+
 // ── Entry point ──────────────────────────────────────────────────
 const rawArgs = process.argv.slice(2);
 const subCommand = rawArgs[0] === 'pull' ? 'pull'
   : rawArgs[0] === 'diff' ? 'diff'
   : rawArgs[0] === 'validate' ? 'validate'
+  : rawArgs[0] === 'init' ? 'init'
   : 'simulate';
 
 if (subCommand === 'pull') {
@@ -858,6 +1041,8 @@ if (subCommand === 'pull') {
     if (process.env.DEBUG) console.error(err.stack);
     process.exit(1);
   });
+} else if (subCommand === 'init') {
+  initMain(rawArgs.slice(1));
 } else {
   main().catch(err => {
     console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);

@@ -371,7 +371,15 @@ export function simulate(
       if (entry.locale === baseLocale) continue;
       const key = `${entry.contentType}::${entry.sourceId || entry.sourcePath || entry.id}`;
       const baseEntry = baseEntries.get(key);
-      if (!baseEntry) continue;
+      if (!baseEntry) {
+        report.warnings.push({
+          type: 'MISSING_BASE_LOCALE_ENTRY',
+          contentType: entry.contentType,
+          entryId: entry.id,
+          message: `Entry exists in locale '${entry.locale}' but has no corresponding '${baseLocale}' base entry — non-localized fields cannot be inherited`,
+        });
+        continue;
+      }
 
       const ctDef = getSchema(entry.contentType);
       if (!ctDef) continue;

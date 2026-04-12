@@ -152,3 +152,70 @@ describe('formatDiff', () => {
     assert.ok(text.includes('~1'));
   });
 });
+
+// ── Field reorder detection ──────────────────────────────────────
+
+describe('field reorder detection', () => {
+  it('detects reordered fields', () => {
+    const v1: ContentTypeDefinition = {
+      id: 'page',
+      name: 'Page',
+      fields: [
+        { id: 'title', name: 'Title', type: 'Symbol' },
+        { id: 'slug', name: 'Slug', type: 'Symbol' },
+        { id: 'body', name: 'Body', type: 'Text' },
+      ],
+    };
+    const v2: ContentTypeDefinition = {
+      id: 'page',
+      name: 'Page',
+      fields: [
+        { id: 'slug', name: 'Slug', type: 'Symbol' },
+        { id: 'body', name: 'Body', type: 'Text' },
+        { id: 'title', name: 'Title', type: 'Symbol' },
+      ],
+    };
+    const result = diffSchemas({ page: v1 }, { page: v2 });
+    assert.equal(result.changes.length, 1);
+    assert.equal(result.changes[0].kind, 'changed');
+    const reordered = result.changes[0].fieldChanges.filter(fc => fc.kind === 'reordered');
+    assert.ok(reordered.length > 0, 'Expected at least one reordered field');
+    assert.ok(reordered.some(r => r.details?.includes('position')));
+  });
+
+  it('does not flag reorder when order is identical', () => {
+    const ct: ContentTypeDefinition = {
+      id: 'page',
+      name: 'Page',
+      fields: [
+        { id: 'title', name: 'Title', type: 'Symbol' },
+        { id: 'slug', name: 'Slug', type: 'Symbol' },
+      ],
+    };
+    const result = diffSchemas({ page: ct }, { page: ct });
+    assert.equal(result.changes.length, 0);
+  });
+
+  it('formats reordered fields with ↕ icon', () => {
+    const v1: ContentTypeDefinition = {
+      id: 'page',
+      name: 'Page',
+      fields: [
+        { id: 'title', name: 'Title', type: 'Symbol' },
+        { id: 'body', name: 'Body', type: 'Text' },
+      ],
+    };
+    const v2: ContentTypeDefinition = {
+      id: 'page',
+      name: 'Page',
+      fields: [
+        { id: 'body', name: 'Body', type: 'Text' },
+        { id: 'title', name: 'Title', type: 'Symbol' },
+      ],
+    };
+    const result = diffSchemas({ page: v1 }, { page: v2 });
+    const text = formatDiff(result, { color: false });
+    assert.ok(text.includes('↕'), 'Expected ↕ icon for reordered fields');
+    assert.ok(text.includes('position'));
+  });
+});

@@ -25,14 +25,17 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry validation**: field-level checks against content type definitions
 - **`writeReport()`**: write simulation report to JSON
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
-- **Test suite**: 218 tests (unit + e2e), zero `as any` casts
+- **Test suite**: 226 tests (unit + e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
 - **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property
 - **Security**: documented that `--schemas`/`--transforms` dirs execute JS via dynamic `import()`
 - **`cms-sim validate`**: standalone validation subcommand for CI/CD — runs the simulation pipeline and outputs errors/warnings only (no HTML). Supports `--json` for machine-readable output and exits with code 1 on validation errors.
+- **`cms-sim init`**: scaffold a new content model project with example schemas (`blogPost`, `author`), a README with quick-start guide, and all supported field types documented.
 - **Watch mode fixed output dir**: `--watch` now uses a stable output directory (`output/<name>/`) instead of timestamped dirs, so the browser URL stays valid and F5 refreshes work.
 - **Pull preview 401 warning**: when `--preview` is used and the API returns 401, the error message now suggests using a Content Preview API (CPA) token instead of a CDA token.
+- **`MISSING_BASE_LOCALE_ENTRY` warning**: emitted during locale inheritance when an entry exists only in a non-base locale but has no corresponding base-locale entry.
+- **`FIELD_REORDERED` change kind in schema diff**: `diffSchemas()` now detects field reordering (position changes) in addition to added/removed/changed fields. Shown with `↕` icon in formatted output.
 
 ### Fixed
 - Skip `internalName` in validator (false positive warnings)
