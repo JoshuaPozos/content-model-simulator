@@ -6,6 +6,7 @@ import os from 'os';
 import {
   readDocuments,
   readDocumentsSync,
+  readDocumentsStream,
   filterByContentType,
   filterByLocale,
   filterByPath,
@@ -224,5 +225,65 @@ describe('getDocumentStats', () => {
     assert.equal(stats.totalDocuments, 1);
     assert.equal(stats.contentTypeCount, 0);
     assert.equal(stats.localeCount, 0);
+  });
+});
+
+describe('readDocumentsStream', () => {
+  let tmpDir;
+
+  afterEach(() => { if (tmpDir) cleanup(tmpDir); });
+
+  it('yields documents one at a time from NDJSON', async () => {
+    tmpDir = createTmpDir();
+    const ndjson = sampleDocs.map(d => JSON.stringify(d)).join('\n') + '\n';
+    const filePath = path.join(tmpDir, 'data.ndjson');
+    fs.writeFileSync(filePath, ndjson);
+
+    const docs = [];
+    for await (const doc of readDocumentsStream(filePath)) {
+      docs.push(doc);
+    }
+
+    assert.equal(docs.length, 3);
+    assert.equal(docs[0].id, '1');
+    assert.equal(docs[2].locale, 'es');
+  });
+
+  it('applies transform to each document', async () => {
+    tmpDir = createTmpDir();
+    const ndjson = sampleDocs.map(d => JSON.stringify(d)).join('\n');
+    const filePath = path.join(tmpDir, 'data.ndjson');
+    fs.writeFileSync(filePath, ndjson);
+
+    const docs = [];
+    for await (const doc of readDocumentsStream(filePath, {
+      transform: (d) => ({ ...d as Record<string, unknown>, locale: 'transformed' } as any),
+    })) {
+      docs.push(doc);
+    }
+
+    assert.equal(docs.length, 3);
+    assert.ok(docs.every(d => d.locale === 'transformed'));
+  });
+
+  it('skips malformed lines', async () => {
+    tmpDir = createTmpDir();
+    const content = '{"id":"1","contentType":"a","fields":{}}\nBAD_LINE\n{"id":"2","contentType":"b","fields":{}}\n';
+    const filePath = path.join(tmpDir, 'data.ndjson');
+    fs.writeFileSync(filePath, content);
+
+    const docs = [];
+    for await (const doc of readDocumentsStream(filePath)) {
+      docs.push(doc);
+    }
+
+    assert.equal(docs.length, 2);
+  });
+
+  it('throws for non-existent file', async () => {
+    await assert.rejects(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      for await (const _ of readDocumentsStream('/nonexistent/file.ndjson')) { /* consume */ }
+    }, /does not exist/);
   });
 });

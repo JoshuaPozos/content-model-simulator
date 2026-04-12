@@ -215,7 +215,7 @@ export function simulate(
     for (const transformedEntry of transformedArray) {
       const specificCtfType = transformedEntry._metadata?.contentType || targetType;
       let specificEntryId = transformedEntry._metadata?.entryId ||
-        generateEntryId(specificCtfType, `${name}-${doc.name || doc.id}-${locale}`);
+        generateEntryId(specificCtfType, `${doc.path || doc.id || name}-${locale}`);
 
       if (specificEntryId.length > 64) {
         report.warnings.push({
@@ -375,7 +375,7 @@ function transformGenericEntry(doc: Document, locale: string, mapLocale: (l?: st
   const entry: TransformedEntry = {
     _metadata: {
       contentType,
-      entryId: generateEntryId(contentType, `${doc.id || doc.path || contentType}-${locale}`),
+      entryId: generateEntryId(contentType, `${doc.path || doc.id || contentType}-${locale}`),
       sourceId: doc.id,
       sourcePath: doc.path || null,
       sourceType: contentType,

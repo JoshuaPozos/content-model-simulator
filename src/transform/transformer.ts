@@ -21,7 +21,7 @@ export function transformGeneric(
   const entry: TransformedEntry = {
     _metadata: {
       contentType,
-      entryId: generateEntryId(contentType, `${doc.id || doc.path || contentType}-${resolvedLocale}`),
+      entryId: generateEntryId(contentType, `${doc.path || doc.id || contentType}-${resolvedLocale}`),
       sourceId: doc.id,
       sourcePath: doc.path || null,
       sourceType: contentType,

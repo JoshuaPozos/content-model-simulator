@@ -13,6 +13,7 @@ All notable changes to `content-model-simulator` are documented here.
   - `--max-entries`, `--include-entries`, `--environment` options
   - Pagination progress indicator (`Fetching entries… 300/5200`)
 - **Schema Registry**: load from directory, plain objects, or arrays
+- **Streaming NDJSON reader**: `readDocumentsStream()` async generator for files >100MB without loading into memory
 - **Transformer Registry**: custom transforms per content type with skip/rename support
 - **Content Browser HTML**: interactive entry viewer with linked entry resolution, RichText rendering, search
 - **Content Model Graph HTML**: SVG visualization with horizontal hierarchical layout, linked entry resolution
@@ -22,6 +23,7 @@ All notable changes to `content-model-simulator` are documented here.
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
 - **Test suite**: 188 tests (165 unit + 23 e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
+- **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property
 - **Security**: documented that `--schemas`/`--transforms` dirs execute JS via dynamic `import()`
 

@@ -273,4 +273,17 @@ describe('simulate', () => {
     assert.equal(dupeWarnings.length, 1);
     assert.ok(dupeWarnings[0].message.includes('title'));
   });
+
+  it('generates deterministic entry IDs based on path+locale', () => {
+    const doc = makeDoc({ path: '/blog/hello', locale: 'en' });
+    const r1 = simulate({ documents: [doc], schemas: { blogPost: blogPostDef } });
+    const r2 = simulate({ documents: [doc], schemas: { blogPost: blogPostDef } });
+
+    assert.equal(r1.entries[0].id, r2.entries[0].id);
+
+    // Different path → different ID
+    const doc2 = makeDoc({ path: '/blog/goodbye', locale: 'en' });
+    const r3 = simulate({ documents: [doc2], schemas: { blogPost: blogPostDef } });
+    assert.notEqual(r1.entries[0].id, r3.entries[0].id);
+  });
 });

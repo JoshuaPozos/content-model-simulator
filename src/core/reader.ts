@@ -86,6 +86,38 @@ export function readDocumentsSync(inputPath: string, options: ReadOptions = {}):
   return documents;
 }
 
+/**
+ * Streaming NDJSON reader — yields documents one at a time without
+ * loading the entire file into memory. Suitable for files >100MB.
+ * Only supports NDJSON format (not JSON array or directory).
+ */
+export async function* readDocumentsStream(
+  inputPath: string,
+  options: ReadOptions = {},
+): AsyncGenerator<Document> {
+  const { transform } = options;
+  const resolvedPath = path.resolve(inputPath);
+
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`Input path does not exist: ${resolvedPath}`);
+  }
+
+  const fileStream = fs.createReadStream(resolvedPath, { encoding: 'utf-8' });
+  const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+
+  for await (const line of rl) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      let doc: Document = JSON.parse(trimmed);
+      if (transform) doc = transform(doc);
+      yield doc;
+    } catch {
+      // Skip malformed lines
+    }
+  }
+}
+
 export function filterByContentType(documents: Document[], contentType: string): Document[] {
   return documents.filter(d => d.contentType === contentType);
 }
