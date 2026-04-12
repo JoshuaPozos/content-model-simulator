@@ -19,7 +19,6 @@ export function generateContentBrowserHTML(report: SimulationReport): string {
       linkedAssetIds: e.linkedAssetIds || [],
       sourceId: e.sourceId || null,
       sourcePath: e.sourcePath || null,
-      status: 'Draft',
     });
   }
 
@@ -50,7 +49,6 @@ export function generateContentBrowserHTML(report: SimulationReport): string {
       fields,
       linkedEntryIds: allComponentIds,
       linkedAssetIds: [],
-      status: 'Draft',
     });
   }
 
@@ -85,7 +83,6 @@ export function generateContentBrowserHTML(report: SimulationReport): string {
       locale: e.locale,
       name: e.name,
       fields: e.fields,
-      status: e.status,
       linkedEntryIds: e.linkedEntryIds,
       linkedAssetIds: e.linkedAssetIds,
       sourceId: e.sourceId || null,
@@ -147,7 +144,6 @@ ${BROWSER_CSS}
       <span>Name</span>
       <span>Content Type</span>
       <span>Locale</span>
-      <span>Status</span>
     </div>
     <div class="entry-list" id="entry-list"></div>
   </div>
@@ -223,8 +219,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .entry-row .e-name { flex: 1; font-size: 0.82rem; font-weight: 500; color: var(--gray-800); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .entry-row .e-ct { flex-shrink: 0; font-size: 0.68rem; color: var(--gray-500); background: var(--gray-100); padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
 .entry-row .e-locale { flex-shrink: 0; font-size: 0.68rem; color: var(--gray-500); width: 42px; text-align: center; }
-.entry-row .e-status { flex-shrink: 0; font-size: 0.65rem; padding: 2px 8px; border-radius: 10px; text-align: center; font-weight: 600; }
-.e-status.draft { background: var(--orange-bg); color: var(--orange-text); }
+
 .list-col-header { display: flex; padding: 6px 16px; font-size: 0.68rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 1px solid var(--gray-200); gap: 8px; background: var(--gray-50); position: sticky; top: 0; z-index: 2; }
 .list-col-header span:first-child { flex: 1; }
 .list-col-header span:not(:first-child) { flex-shrink: 0; text-align: center; }
@@ -262,8 +257,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .entry-header .ct-badge { font-size: 0.7rem; color: var(--gray-500); margin-bottom: 4px; }
 .entry-header h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 6px; }
 .entry-header .meta { display: flex; gap: 16px; font-size: 0.72rem; color: var(--gray-500); flex-wrap: wrap; }
-.entry-header .meta .tag { padding: 2px 8px; border-radius: 10px; font-weight: 600; font-size: 0.68rem; }
-.entry-header .meta .tag.draft { background: var(--orange-bg); color: var(--orange-text); }
+
 
 .detail-tabs { display: flex; gap: 0; background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 28px; }
 .detail-tabs button { background: none; border: none; padding: 10px 16px; font-size: 0.82rem; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
@@ -285,8 +279,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .linked-entry:hover { border-color: var(--blue); background: var(--blue-hover); }
 .linked-entry .le-ct { font-size: 0.68rem; color: var(--gray-500); background: var(--gray-100); padding: 2px 6px; border-radius: 3px; flex-shrink: 0; }
 .linked-entry .le-name { font-size: 0.82rem; color: var(--gray-800); font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.linked-entry .le-status { font-size: 0.62rem; padding: 2px 6px; border-radius: 8px; font-weight: 600; flex-shrink: 0; }
-.linked-entry .le-status.draft { background: var(--orange-bg); color: var(--orange-text); }
+
 .linked-entry .le-arrow { color: var(--gray-400); flex-shrink: 0; }
 
 .asset-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius); font-size: 0.78rem; color: var(--gray-600); }
@@ -351,8 +344,7 @@ function renderList() {
     row.innerHTML =
       '<span class="e-name">' + esc(getDisplayName(entry)) + '</span>' +
       '<span class="e-ct">' + esc(entry.contentType) + '</span>' +
-      '<span class="e-locale">' + esc(entry.locale) + '</span>' +
-      '<span class="e-status draft">Draft</span>';
+      '<span class="e-locale">' + esc(entry.locale) + '</span>';
     row.onclick = () => openEntry(entry.id);
     listEl.appendChild(row);
   }
@@ -398,7 +390,6 @@ function openEntry(entryId, pushToStack) {
     '<div class="ct-badge">← ' + esc(ctName) + '</div>' +
     '<h2>' + esc(entryName) + '</h2>' +
     '<div class="meta">' +
-      '<span class="tag draft">Draft</span>' +
       '<span>Locale: <strong>' + esc(locale) + '</strong></span>' +
       '<span>ID: <code>' + esc(entry.id) + '</code></span>' +
       (entry.sourcePath ? '<span>Source: <code>' + esc(entry.sourcePath) + '</code></span>' : '') +
@@ -660,7 +651,7 @@ function renderLinkedEntry(entryId) {
     return '<div class="linked-entry" style="opacity:0.5"><span class="le-ct">?</span><span class="le-name">' + esc(entryId) + '</span><span style="font-size:0.65rem;color:var(--gray-400)">Not in simulation</span></div>';
   }
   const ctDef = DATA.contentTypes[linked.contentType];
-  return '<div class="linked-entry" onclick="openEntry(\\'' + linked.id + '\\')"><span class="le-ct">' + esc(ctDef?.name || linked.contentType) + '</span><span class="le-name">' + esc(getDisplayName(linked)) + '</span><span class="le-status draft">Draft</span><span class="le-arrow">›</span></div>';
+  return '<div class="linked-entry" onclick="openEntry(\\'' + linked.id + '\\')"><span class="le-ct">' + esc(ctDef?.name || linked.contentType) + '</span><span class="le-name">' + esc(getDisplayName(linked)) + '</span><span class="le-arrow">›</span></div>';
 }
 
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
