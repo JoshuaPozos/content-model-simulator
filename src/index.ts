@@ -53,6 +53,13 @@ export type {
   SchemaDiffResult,
 } from './core/schema-diff.js';
 
+export type {
+  EntryCountChange,
+  IssueDiff,
+  StatDelta,
+  ReportDiffResult,
+} from './core/report-diff.js';
+
 // ── Core ─────────────────────────────────────────────────────────
 export { simulate } from './core/simulator.js';
 export { readDocuments, readDocumentsSync, readDocumentsStream, filterByContentType, filterByLocale, filterByPath, getDocumentStats } from './core/reader.js';
@@ -60,6 +67,7 @@ export { SchemaRegistry } from './core/schema-registry.js';
 export { validateEntry, validateAll } from './core/validator.js';
 export { generateMockData } from './core/mock-generator.js';
 export { diffSchemas, formatDiff } from './core/schema-diff.js';
+export { diffReports, formatReportDiff } from './core/report-diff.js';
 
 // ── Transform ────────────────────────────────────────────────────
 export { transformGeneric, TransformerRegistry } from './transform/transformer.js';

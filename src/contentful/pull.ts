@@ -9,7 +9,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ContentTypeDefinition, ContentTypeField, Document, PullOptions, PullResult } from '../types.js';
+import type { ContentTypeDefinition, ContentTypeField, Document, PullOptions, PullResult, PulledAsset } from '../types.js';
 
 // ── API helpers ──────────────────────────────────────────────────
 
@@ -135,6 +135,7 @@ export async function pull(options: PullOptions): Promise<PullResult> {
     environment = 'master',
     outputDir,
     includeEntries = false,
+    includeAssets = false,
     maxEntries = 1000,
     contentType,
     useCMA = false,
@@ -189,6 +190,44 @@ export async function pull(options: PullOptions): Promise<PullResult> {
     }
   }
 
+  // ── Optionally fetch assets ────────────────────────────────
+  let assets: PulledAsset[] | null = null;
+  if (includeAssets) {
+    if (verbose) console.log('\nFetching assets...');
+    const assetsRaw = await fetchAll(
+      `${envUrl}/assets?locale=*`,
+      headers,
+      {
+        verbose,
+        usePreview,
+        onProgress: (fetched, total) => {
+          if (!verbose) process.stdout.write(`\r  Fetching assets... ${fetched}/${total}`);
+        },
+      },
+    );
+    if (!verbose) process.stdout.write('\n');
+
+    assets = [];
+    for (const asset of assetsRaw) {
+      const fileField = asset.fields?.file;
+      if (!fileField) continue;
+      for (const [locale, fileInfo] of Object.entries(fileField)) {
+        const f = fileInfo as Record<string, any>;
+        if (!f?.url) continue;
+        assets.push({
+          id: asset.sys.id,
+          title: asset.fields?.title?.[locale] || asset.sys.id,
+          fileName: f.fileName || 'unknown',
+          contentType: f.contentType || 'application/octet-stream',
+          url: f.url.startsWith('//') ? `https:${f.url}` : f.url,
+          size: f.details?.size || 0,
+          locale,
+        });
+      }
+    }
+    if (verbose) console.log(`  Found ${assets.length} asset file(s) across ${locales.length} locale(s)`);
+  }
+
   // ── Write to disk ──────────────────────────────────────────
   if (outputDir) {
     const schemasDir = join(outputDir, 'schemas');
@@ -218,7 +257,49 @@ export async function pull(options: PullOptions): Promise<PullResult> {
       const ndjson = documents.map(d => JSON.stringify(d)).join('\n') + '\n';
       writeFileSync(join(dataDir, 'entries.ndjson'), ndjson, 'utf-8');
     }
+
+    // Write asset metadata and download files
+    if (assets && assets.length > 0) {
+      const assetsDir = join(outputDir, 'assets');
+      mkdirSync(assetsDir, { recursive: true });
+
+      // Write metadata index
+      writeFileSync(
+        join(assetsDir, 'assets.json'),
+        JSON.stringify(assets, null, 2) + '\n',
+        'utf-8',
+      );
+
+      // Download asset files
+      if (verbose) console.log('\nDownloading asset files...');
+      const seen = new Set<string>();
+      let downloaded = 0;
+      let skipped = 0;
+      for (const asset of assets) {
+        // Deduplicate by URL (same file across locales)
+        if (seen.has(asset.url)) { skipped++; continue; }
+        seen.add(asset.url);
+
+        // Sanitize filename
+        const safeName = `${asset.id}_${asset.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        try {
+          const res = await fetch(asset.url);
+          if (!res.ok) {
+            if (verbose) console.log(`  ⚠ Failed to download ${asset.fileName}: HTTP ${res.status}`);
+            continue;
+          }
+          const buffer = Buffer.from(await res.arrayBuffer());
+          writeFileSync(join(assetsDir, safeName), buffer);
+          downloaded++;
+          if (!verbose) process.stdout.write(`\r  Downloading assets... ${downloaded}`);
+        } catch (err: any) {
+          if (verbose) console.log(`  ⚠ Failed to download ${asset.fileName}: ${err.message}`);
+        }
+      }
+      if (!verbose && downloaded > 0) process.stdout.write('\n');
+      if (verbose) console.log(`  Downloaded ${downloaded} file(s)${skipped > 0 ? ` (${skipped} duplicates skipped)` : ''}`);
+    }
   }
 
-  return { schemas, locales, defaultLocale, documents };
+  return { schemas, locales, defaultLocale, documents, assets };
 }

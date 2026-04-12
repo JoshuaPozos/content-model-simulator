@@ -154,6 +154,7 @@ ${c.cyan}OPTIONS:${c.reset}
   --environment=<env>   Environment (default: master)
   --output=<dir>        Output directory (default: ./contentful-export)
   --include-entries     Also download published entries
+  --include-assets      Download asset files (images, documents)
   --max-entries=<n>     Max entries to download (default: 1000)
   --content-type=<id>   Only fetch entries of this content type
   --preview             Use Content Preview API (drafts) instead of CDA
@@ -165,6 +166,7 @@ ${c.cyan}OUTPUT:${c.reset}
     schemas/              ${c.dim}One .js file per content type (ready for cms-sim)${c.reset}
     contentful-space.json ${c.dim}Space metadata (locales, base locale, pulled date)${c.reset}
     data/entries.ndjson   ${c.dim}Entries in NDJSON (only with --include-entries)${c.reset}
+    assets/               ${c.dim}Downloaded asset files + assets.json index (only with --include-assets)${c.reset}
 
 ${c.cyan}EXAMPLES:${c.reset}
   ${c.dim}# Download content model only${c.reset}
@@ -354,10 +356,34 @@ async function runSimulation(args) {
   // HTML output (unless --json)
   let browserPath, graphPath;
   if (!args.json) {
+    let browserHTML = generateContentBrowserHTML(report);
+    let graphHTML = generateModelGraphHTML(report);
+
+    // Inject auto-reload script when in watch mode
+    if (args.watch) {
+      const reloadScript = `<script>
+(function(){
+  var last = null;
+  setInterval(function(){
+    fetch('manifest.json?_=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var ts = d.generatedAt || d.timestamp || JSON.stringify(d);
+        if (last && ts !== last) location.reload();
+        last = ts;
+      })
+      .catch(function(){});
+  }, 1500);
+})();
+</script>`;
+      browserHTML = browserHTML.replace('</body>', reloadScript + '\n</body>');
+      graphHTML = graphHTML.replace('</body>', reloadScript + '\n</body>');
+    }
+
     browserPath = join(outputDir, 'content-browser.html');
     graphPath = join(outputDir, 'visual-report.html');
-    writeFileSync(browserPath, generateContentBrowserHTML(report), 'utf-8');
-    writeFileSync(graphPath, generateModelGraphHTML(report), 'utf-8');
+    writeFileSync(browserPath, browserHTML, 'utf-8');
+    writeFileSync(graphPath, graphHTML, 'utf-8');
   }
 
   console.log(`\n${c.cyan}${'─'.repeat(68)}${c.reset}`);
@@ -455,6 +481,7 @@ async function pullMain(argv) {
     environment: 'master',
     output: './contentful-export',
     includeEntries: false,
+    includeAssets: false,
     maxEntries: 1000,
     contentType: null,
     preview: false,
@@ -466,6 +493,7 @@ async function pullMain(argv) {
     if (arg === '--help' || arg === '-h') { args.help = true; continue; }
     if (arg === '--verbose' || arg === '-v') { args.verbose = true; continue; }
     if (arg === '--include-entries') { args.includeEntries = true; continue; }
+    if (arg === '--include-assets') { args.includeAssets = true; continue; }
     if (arg === '--preview') { args.preview = true; continue; }
 
     const eq = arg.indexOf('=');
@@ -508,6 +536,7 @@ async function pullMain(argv) {
     environment: args.environment,
     outputDir,
     includeEntries: args.includeEntries,
+    includeAssets: args.includeAssets,
     maxEntries: args.maxEntries,
     contentType: args.contentType || undefined,
     usePreview: args.preview,
@@ -519,6 +548,9 @@ async function pullMain(argv) {
   if (result.documents) {
     console.log(`${c.green}✓${c.reset} ${c.bold}${result.documents.length}${c.reset} entry-locale documents`);
   }
+  if (result.assets) {
+    console.log(`${c.green}✓${c.reset} ${c.bold}${result.assets.length}${c.reset} asset files downloaded`);
+  }
 
   console.log(`\n${c.cyan}${'─'.repeat(68)}${c.reset}`);
   console.log(`${c.bold}Output:${c.reset} ${outputDir}`);
@@ -526,6 +558,9 @@ async function pullMain(argv) {
   console.log(`${c.dim}  contentful-space.json  → locales & metadata${c.reset}`);
   if (result.documents) {
     console.log(`${c.dim}  data/entries.ndjson   → ${result.documents.length} documents${c.reset}`);
+  }
+  if (result.assets) {
+    console.log(`${c.dim}  assets/               → ${result.assets.length} files + assets.json index${c.reset}`);
   }
 
   console.log(`\n${c.cyan}Next steps:${c.reset}`);
@@ -560,21 +595,24 @@ async function diffMain(argv) {
   if (help || !oldDir || !newDir) {
     console.log(`
 ${c.bold}Content Model Simulator — Diff${c.reset}
-Compare two schema directories and show added, removed, and changed content types.
+Compare two schema directories or two simulation output directories.
+Auto-detects mode: if directories contain manifest.json, performs a full report diff;
+otherwise compares schemas only.
 
 ${c.cyan}USAGE:${c.reset}
   cms-sim diff --old=<dir> --new=<dir> [options]
 
 ${c.cyan}REQUIRED:${c.reset}
-  --old=<dir>   Original schemas directory
-  --new=<dir>   Updated schemas directory
+  --old=<dir>   Original directory (schemas/ or simulation output)
+  --new=<dir>   Updated directory (schemas/ or simulation output)
 
 ${c.cyan}OPTIONS:${c.reset}
   --json        Output diff as JSON
   --help, -h    Show this help
 
-${c.cyan}EXAMPLE:${c.reset}
+${c.cyan}EXAMPLES:${c.reset}
   cms-sim diff --old=v1/schemas/ --new=v2/schemas/
+  cms-sim diff --old=output-v1/ --new=output-v2/
 `);
     process.exit(help ? 0 : 1);
   }
@@ -591,26 +629,44 @@ ${c.cyan}EXAMPLE:${c.reset}
     process.exit(1);
   }
 
-  const { SchemaRegistry: SR } = await import('../dist/core/schema-registry.js');
-  const { diffSchemas, formatDiff } = await import('../dist/core/schema-diff.js');
+  // Auto-detect mode: report diff if both dirs contain manifest.json
+  const isReportDiff = existsSync(join(oldPath, 'manifest.json')) && existsSync(join(newPath, 'manifest.json'));
 
-  const oldSchemas = new SR();
-  await oldSchemas.loadFromDirectory(oldPath);
-  const newSchemas = new SR();
-  await newSchemas.loadFromDirectory(newPath);
+  if (isReportDiff) {
+    const { diffReports, formatReportDiff } = await import('../dist/core/report-diff.js');
+    const result = diffReports(oldPath, newPath);
 
-  const result = diffSchemas(oldSchemas.getAll(), newSchemas.getAll());
-
-  if (jsonOut) {
-    console.log(JSON.stringify(result, null, 2));
+    if (jsonOut) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(`\n${c.cyan}${'═'.repeat(68)}${c.reset}`);
+      console.log(`${c.bold}Content Model Simulator — Report Diff${c.reset}`);
+      console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
+      console.log(formatReportDiff(result));
+      console.log('');
+    }
   } else {
-    console.log(`\n${c.cyan}${'═'.repeat(68)}${c.reset}`);
-    console.log(`${c.bold}Content Model Simulator — Schema Diff${c.reset}`);
-    console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
-    console.log(`${c.dim}Old: ${oldPath}${c.reset}`);
-    console.log(`${c.dim}New: ${newPath}${c.reset}\n`);
-    console.log(formatDiff(result));
-    console.log('');
+    const { SchemaRegistry: SR } = await import('../dist/core/schema-registry.js');
+    const { diffSchemas, formatDiff } = await import('../dist/core/schema-diff.js');
+
+    const oldSchemas = new SR();
+    await oldSchemas.loadFromDirectory(oldPath);
+    const newSchemas = new SR();
+    await newSchemas.loadFromDirectory(newPath);
+
+    const result = diffSchemas(oldSchemas.getAll(), newSchemas.getAll());
+
+    if (jsonOut) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(`\n${c.cyan}${'═'.repeat(68)}${c.reset}`);
+      console.log(`${c.bold}Content Model Simulator — Schema Diff${c.reset}`);
+      console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
+      console.log(`${c.dim}Old: ${oldPath}${c.reset}`);
+      console.log(`${c.dim}New: ${newPath}${c.reset}\n`);
+      console.log(formatDiff(result));
+      console.log('');
+    }
   }
 }
 

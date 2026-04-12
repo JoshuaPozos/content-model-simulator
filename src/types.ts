@@ -224,6 +224,7 @@ export interface PullOptions {
   environment?: string;
   outputDir?: string;
   includeEntries?: boolean;
+  includeAssets?: boolean;
   maxEntries?: number;
   contentType?: string;
   useCMA?: boolean;
@@ -236,6 +237,17 @@ export interface PullResult {
   locales: string[];
   defaultLocale: string;
   documents: Document[] | null;
+  assets: PulledAsset[] | null;
+}
+
+export interface PulledAsset {
+  id: string;
+  title: string;
+  fileName: string;
+  contentType: string;
+  url: string;
+  size: number;
+  locale: string;
 }
 
 // ── Mock Data Types ──────────────────────────────────────────────

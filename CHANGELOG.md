@@ -25,7 +25,7 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry validation**: field-level checks against content type definitions
 - **`writeReport()`**: write simulation report to JSON
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
-- **Test suite**: 226 tests (unit + e2e), zero `as any` casts
+- **Test suite**: 233 tests (unit + e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
 - **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property
@@ -36,6 +36,9 @@ All notable changes to `content-model-simulator` are documented here.
 - **Pull preview 401 warning**: when `--preview` is used and the API returns 401, the error message now suggests using a Content Preview API (CPA) token instead of a CDA token.
 - **`MISSING_BASE_LOCALE_ENTRY` warning**: emitted during locale inheritance when an entry exists only in a non-base locale but has no corresponding base-locale entry.
 - **`FIELD_REORDERED` change kind in schema diff**: `diffSchemas()` now detects field reordering (position changes) in addition to added/removed/changed fields. Shown with `↕` icon in formatted output.
+- **Watch auto-reload**: when `--watch` is active, injected HTML includes a polling script that auto-refreshes the browser when the simulation re-runs (monitors `manifest.json` timestamp every 1.5s).
+- **`cms-sim pull --include-assets`**: download asset files (images, documents, etc.) alongside entries. Writes `assets/assets.json` index and individual files with URL-based deduplication.
+- **Report-level diff** (`cms-sim diff`): auto-detects simulation output directories (via `manifest.json`) and compares schemas, entry counts, errors/warnings, and stats between two simulation runs. Falls back to schema-only diff for plain schema directories.
 
 ### Fixed
 - Skip `internalName` in validator (false positive warnings)
