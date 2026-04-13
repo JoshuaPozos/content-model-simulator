@@ -474,7 +474,7 @@ function showCtDetail(ctId) {
     (outRels.length ? '<div class="dp-section"><h4>References Out →</h4>' + outRels.map(r => '<div class="dp-row"><span class="k">' + r.fieldName + '</span><span class="v">→ ' + r.to + '</span></div>').join('') + '</div>' : '') +
     (inRels.length ? '<div class="dp-section"><h4>← Referenced By</h4>' + inRels.map(r => '<div class="dp-row"><span class="k">' + r.from + '</span><span class="v">.' + r.fieldName + '</span></div>').join('') + '</div>' : '') +
     '<div class="dp-section"><h4>Sample Entries (first 20)</h4>' +
-      entries.slice(0, 20).map(e => '<div class="dp-row"><span class="k" style="font-size:0.65rem">' + e.id.substring(0, 45) + '</span><span class="v">' + e.locale + '</span></div>').join('') +
+      entries.slice(0, 20).map(e => '<div class="dp-row"><span class="k" style="font-size:0.65rem">' + e.id.substring(0, 45) + '</span><span class="v">' + (e.locales || []).join(', ') + '</span></div>').join('') +
       (entries.length > 20 ? '<div style="color:#6B7280;font-size:0.7rem;padding:4px 0">+' + (entries.length - 20) + ' more</div>' : '') +
     '</div>';
   panel.classList.add('open');
@@ -497,7 +497,7 @@ const entryList = document.getElementById('entry-list');
 DATA.entries.forEach(e => {
   const li = document.createElement('li');
   li.className = 'list-item';
-  li.innerHTML = '<div class="title" style="font-family:monospace;font-size:0.72rem;color:#818CF8">' + esc(e.id.substring(0, 55)) + '</div><div class="meta">' + esc(e.contentType) + ' · ' + esc(e.locale) + ' · ' + Object.keys(e.fields).length + ' fields</div>';
+  li.innerHTML = '<div class="title" style="font-family:monospace;font-size:0.72rem;color:#818CF8">' + esc(e.id.substring(0, 55)) + '</div><div class="meta">' + esc(e.contentType) + ' · ' + (e.locales || []).join(', ') + ' · ' + Object.keys(e.fields).length + ' fields</div>';
   entryList.appendChild(li);
 });
 

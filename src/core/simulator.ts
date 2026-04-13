@@ -177,6 +177,18 @@ export function simulate(
   // ─── Transform & process documents ──────────────────────────────────
   const { transformGeneric } = await_import_transform();
 
+  // Intermediate per-locale entries before merging
+  interface IntermediateEntry {
+    id: string;
+    contentType: string;
+    locale: string;
+    sourceId: string | null;
+    sourcePath: string | null;
+    sourceType: string;
+    fields: EntryFields;
+  }
+  const intermediateEntries: IntermediateEntry[] = [];
+
   for (const doc of documents) {
     if (!doc.contentType) {
       report.warnings.push({
@@ -215,8 +227,9 @@ export function simulate(
 
     for (const transformedEntry of transformedArray) {
       const specificCtfType = transformedEntry._metadata?.contentType || targetType;
+      // Entry ID is locale-independent — same source produces same entry ID across locales
       let specificEntryId = transformedEntry._metadata?.entryId ||
-        generateEntryId(specificCtfType, `${doc.path || doc.id || name}-${locale}`);
+        generateEntryId(specificCtfType, `${doc.path || doc.id || name}`);
 
       if (specificEntryId.length > 64) {
         report.warnings.push({
@@ -236,19 +249,22 @@ export function simulate(
               k === baseLocale || report.locales.includes(k)
             );
             if (hasLocaleKey) {
-              const actualValue = Object.values(fieldValue)[0];
-              fields[fieldName] = { [baseLocale]: actualValue };
+              // Preserve the actual locale key from the wrapper
+              const localeKey = Object.keys(fieldValue).find(k =>
+                k === baseLocale || report.locales.includes(k)
+              )!;
+              fields[fieldName] = { [localeKey]: Object.values(fieldValue)[0] };
             } else {
-              fields[fieldName] = { [baseLocale]: fieldValue };
+              fields[fieldName] = { [locale]: fieldValue };
             }
           } else {
-            fields[fieldName] = { [baseLocale]: fieldValue };
+            fields[fieldName] = { [locale]: fieldValue };
           }
         }
       }
 
       // Link assets
-      linkAssets(fields, urlToAssetId, baseLocale, { isAsset, getAssetUrl });
+      linkAssets(fields, urlToAssetId, locale, { isAsset, getAssetUrl });
 
       // Extract nested objects
       if (fieldGroupMap && Object.keys(fieldGroupMap).length > 0) {
@@ -282,10 +298,16 @@ export function simulate(
                 };
               }
             }
-            if (report.contentTypes[fgEntry.contentType]) {
-              report.contentTypes[fgEntry.contentType].entryCount++;
-            }
-            report.entries.push(fgEntry);
+            // Push fg entries into the merge pipeline
+            intermediateEntries.push({
+              id: fgEntry.id,
+              contentType: fgEntry.contentType,
+              locale: fgEntry.locales[0] || locale,
+              sourceId: null,
+              sourcePath: fgEntry.sourcePath || null,
+              sourceType: fgEntry.sourceType,
+              fields: fgEntry.fields,
+            });
           }
         }
       }
@@ -295,9 +317,9 @@ export function simulate(
       if (ctDefForSelect) {
         for (const f of ctDefForSelect.fields || []) {
           if (f.type === 'Symbol' && f.validations?.some(v => v.in)) {
-            const val = fields[f.id]?.[baseLocale];
+            const val = fields[f.id]?.[locale];
             if (val !== undefined) {
-              fields[f.id] = { [baseLocale]: extractSelectKey(val) };
+              fields[f.id] = { ...fields[f.id], [locale]: extractSelectKey(val) };
             }
           }
         }
@@ -328,43 +350,7 @@ export function simulate(
         }
       }
 
-      // Validate
-      const ctDef = getSchema(specificCtfType);
-      if (ctDef) {
-        const { errors, warnings } = validateEntry(
-          { id: specificEntryId, contentType: specificCtfType, fields },
-          ctDef,
-          baseLocale
-        );
-        report.errors.push(...errors);
-        report.warnings.push(...warnings);
-      }
-
-      // Track CT counts
-      if (report.contentTypes[specificCtfType]) {
-        report.contentTypes[specificCtfType].entryCount++;
-      }
-
-      const linkedEntryIds: string[] = [];
-      const linkedAssetIds: string[] = [];
-      for (const [, fw] of Object.entries(fields)) {
-        const val = fw?.[baseLocale] as any;
-        if (val?.sys?.linkType === 'Entry') linkedEntryIds.push(val.sys.id);
-        if (val?.sys?.linkType === 'Asset') linkedAssetIds.push(val.sys.id);
-        if (Array.isArray(val)) {
-          for (const item of val) {
-            if (item?.sys?.linkType === 'Entry') linkedEntryIds.push(item.sys.id);
-            if (item?.sys?.linkType === 'Asset') linkedAssetIds.push(item.sys.id);
-            if (item && typeof item === 'object' && !(item as any).sys) {
-              for (const subVal of Object.values(item as Record<string, any>)) {
-                if (subVal?.sys?.linkType === 'Entry') linkedEntryIds.push(subVal.sys.id);
-              }
-            }
-          }
-        }
-      }
-
-      report.entries.push({
+      intermediateEntries.push({
         id: specificEntryId,
         contentType: specificCtfType,
         locale,
@@ -372,59 +358,102 @@ export function simulate(
         sourcePath: doc.path || null,
         sourceType: doc.contentType,
         fields,
-        linkedEntryIds,
-        linkedAssetIds,
       });
     }
   }
 
-  // ─── Entry deduplication ─────────────────────────────────────────
-  // Remove duplicate entries based on composite key (id + locale).
-  // This handles cross-locale duplicates from data sources that emit
-  // the same entry multiple times.
+  // ─── Merge locale variants into single entries ──────────────────────
+  // Group intermediate entries by a source key and merge their fields
+  // so each final Entry contains all locales (like Contentful).
   {
-    const seen = new Set<string>();
-    const originalCount = report.entries.length;
-    report.entries = report.entries.filter(e => {
-      const key = `${e.id}::${e.locale}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-    const dupeCount = originalCount - report.entries.length;
-    if (dupeCount > 0) {
-      report.warnings.push({
-        type: 'DUPLICATE_ENTRY_REMOVED',
-        message: `Removed ${dupeCount} duplicate ${dupeCount === 1 ? 'entry' : 'entries'} (same id + locale)`,
-      });
+    const mergeMap = new Map<string, Entry>();
+    const mergeOrder: string[] = [];
+
+    for (const ie of intermediateEntries) {
+      const mergeKey = `${ie.contentType}::${ie.id}`;
+
+      let merged = mergeMap.get(mergeKey);
+      if (!merged) {
+        merged = {
+          id: ie.id,
+          contentType: ie.contentType,
+          locales: [],
+          sourceId: ie.sourceId,
+          sourcePath: ie.sourcePath,
+          sourceType: ie.sourceType,
+          fields: {},
+          linkedEntryIds: [],
+          linkedAssetIds: [],
+        };
+        mergeMap.set(mergeKey, merged);
+        mergeOrder.push(mergeKey);
+      }
+
+      // Add locale
+      if (!merged.locales.includes(ie.locale)) {
+        merged.locales.push(ie.locale);
+      }
+
+      // Merge fields: add this locale's values into the merged entry
+      for (const [fieldName, fieldWrapper] of Object.entries(ie.fields)) {
+        if (!merged.fields[fieldName]) {
+          merged.fields[fieldName] = {};
+        }
+        for (const [loc, val] of Object.entries(fieldWrapper)) {
+          merged.fields[fieldName][loc] = val;
+        }
+      }
+    }
+
+    // Build final entries array in insertion order
+    for (const key of mergeOrder) {
+      const entry = mergeMap.get(key)!;
+
+      // Compute linked entry/asset IDs from all locale values
+      for (const [, fw] of Object.entries(entry.fields)) {
+        for (const [, val] of Object.entries(fw)) {
+          collectLinks(val, entry.linkedEntryIds, entry.linkedAssetIds);
+        }
+      }
+
+      // Track CT counts
+      if (report.contentTypes[entry.contentType]) {
+        report.contentTypes[entry.contentType].entryCount++;
+      }
+
+      report.entries.push(entry);
+    }
+  }
+
+  // ─── Validate entries ───────────────────────────────────────────────
+  for (const entry of report.entries) {
+    const ctDef = getSchema(entry.contentType);
+    if (!ctDef) continue;
+
+    // Validate for each locale present in the entry
+    for (const locale of entry.locales) {
+      const { errors, warnings } = validateEntry(
+        { id: entry.id, contentType: entry.contentType, fields: entry.fields },
+        ctDef,
+        locale
+      );
+      report.errors.push(...errors);
+      report.warnings.push(...warnings);
     }
   }
 
   // ─── Locale inheritance ──────────────────────────────────────────
-  // For fields marked localized: false in the schema, ensure the base locale
-  // value is copied from the base-locale entry to other-locale entries for
-  // the same source.  This mirrors Contentful's behavior where non-localized
-  // fields are shared across all locales.
+  // For fields marked localized: false in the schema, copy the base locale
+  // value to all other locales within the same entry.  This mirrors
+  // Contentful's behavior where non-localized fields are shared.
   if (report.locales.length > 1) {
-    // Build a map: sourceKey → base-locale entry
-    const baseEntries = new Map<string, Entry>();
     for (const entry of report.entries) {
-      if (entry.locale === baseLocale) {
-        const key = `${entry.contentType}::${entry.sourceId || entry.sourcePath || entry.id}`;
-        baseEntries.set(key, entry);
-      }
-    }
-
-    for (const entry of report.entries) {
-      if (entry.locale === baseLocale) continue;
-      const key = `${entry.contentType}::${entry.sourceId || entry.sourcePath || entry.id}`;
-      const baseEntry = baseEntries.get(key);
-      if (!baseEntry) {
+      if (!entry.locales.includes(baseLocale)) {
         report.warnings.push({
           type: 'MISSING_BASE_LOCALE_ENTRY',
           contentType: entry.contentType,
           entryId: entry.id,
-          message: `Entry exists in locale '${entry.locale}' but has no corresponding '${baseLocale}' base entry — non-localized fields cannot be inherited`,
+          message: `Entry has no data for base locale '${baseLocale}' — non-localized fields cannot be inherited`,
         });
         continue;
       }
@@ -434,12 +463,15 @@ export function simulate(
 
       for (const fieldDef of ctDef.fields) {
         if (fieldDef.localized) continue; // only inherit non-localized
-        const baseValue = baseEntry.fields[fieldDef.id]?.[baseLocale];
+        const baseValue = entry.fields[fieldDef.id]?.[baseLocale];
         if (baseValue !== undefined) {
-          if (!entry.fields[fieldDef.id]) {
-            entry.fields[fieldDef.id] = {};
+          for (const loc of entry.locales) {
+            if (loc === baseLocale) continue;
+            if (!entry.fields[fieldDef.id]) {
+              entry.fields[fieldDef.id] = {};
+            }
+            entry.fields[fieldDef.id][loc] = baseValue;
           }
-          entry.fields[fieldDef.id][baseLocale] = baseValue;
         }
       }
     }
@@ -468,14 +500,14 @@ function transformGenericEntry(doc: Document, locale: string, mapLocale: (l?: st
   const entry: TransformedEntry = {
     _metadata: {
       contentType,
-      entryId: generateEntryId(contentType, `${doc.path || doc.id || contentType}-${locale}`),
+      entryId: generateEntryId(contentType, `${doc.path || doc.id || contentType}`),
       sourceId: doc.id,
       sourcePath: doc.path || null,
       sourceType: contentType,
     },
     fields: {
       internalName: {
-        [locale]: buildInternalName(doc, locale)
+        [locale]: buildInternalName(doc)
       }
     }
   };
@@ -490,10 +522,10 @@ function transformGenericEntry(doc: Document, locale: string, mapLocale: (l?: st
   return entry;
 }
 
-function buildInternalName(doc: Document, locale: string): string {
+function buildInternalName(doc: Document): string {
   const parts = doc.path?.split('/').filter(Boolean) || [];
   const component = parts[parts.length - 1] || doc.name || doc.contentType;
-  return `${doc.contentType}-${component}-${locale}`.toLowerCase().substring(0, 200);
+  return `${doc.contentType}-${component}`.toLowerCase().substring(0, 200);
 }
 
 function transformFieldValue(value: unknown): unknown {
@@ -507,6 +539,29 @@ function transformFieldValue(value: unknown): unknown {
     return value;
   }
   return value;
+}
+
+function collectLinks(
+  val: unknown,
+  linkedEntryIds: string[],
+  linkedAssetIds: string[],
+): void {
+  if (!val || typeof val !== 'object') return;
+  const v = val as any;
+  if (v.sys?.linkType === 'Entry') { linkedEntryIds.push(v.sys.id); return; }
+  if (v.sys?.linkType === 'Asset') { linkedAssetIds.push(v.sys.id); return; }
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      if (item?.sys?.linkType === 'Entry') linkedEntryIds.push(item.sys.id);
+      else if (item?.sys?.linkType === 'Asset') linkedAssetIds.push(item.sys.id);
+      else if (item && typeof item === 'object' && !item.sys) {
+        for (const subVal of Object.values(item as Record<string, any>)) {
+          if (subVal?.sys?.linkType === 'Entry') linkedEntryIds.push(subVal.sys.id);
+          else if (subVal?.sys?.linkType === 'Asset') linkedAssetIds.push(subVal.sys.id);
+        }
+      }
+    }
+  }
 }
 
 function await_import_transform() {

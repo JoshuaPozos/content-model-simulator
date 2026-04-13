@@ -203,7 +203,7 @@ describe('simulate', () => {
 
   it('records content type entry counts', () => {
     const report = simulate({
-      documents: [makeDoc(), makeDoc({ id: 'doc2' }), makeDoc({ id: 'doc3' })],
+      documents: [makeDoc(), makeDoc({ id: 'doc2', path: '/blog/world' }), makeDoc({ id: 'doc3', path: '/blog/three' })],
       schemas: { blogPost: blogPostDef },
     });
 
@@ -274,7 +274,7 @@ describe('simulate', () => {
     assert.ok(dupeWarnings[0].message.includes('title'));
   });
 
-  it('generates deterministic entry IDs based on path+locale', () => {
+  it('generates deterministic entry IDs based on path', () => {
     const doc = makeDoc({ path: '/blog/hello', locale: 'en' });
     const r1 = simulate({ documents: [doc], schemas: { blogPost: blogPostDef } });
     const r2 = simulate({ documents: [doc], schemas: { blogPost: blogPostDef } });
@@ -285,6 +285,11 @@ describe('simulate', () => {
     const doc2 = makeDoc({ path: '/blog/goodbye', locale: 'en' });
     const r3 = simulate({ documents: [doc2], schemas: { blogPost: blogPostDef } });
     assert.notEqual(r1.entries[0].id, r3.entries[0].id);
+
+    // Same path, different locale → same ID (locales merge into one entry)
+    const doc3 = makeDoc({ path: '/blog/hello', locale: 'fr' });
+    const r4 = simulate({ documents: [doc3], schemas: { blogPost: blogPostDef } });
+    assert.equal(r1.entries[0].id, r4.entries[0].id);
   });
 });
 
@@ -301,7 +306,7 @@ const localizedDef: ContentTypeDefinition = {
 };
 
 describe('locale inheritance', () => {
-  it('copies non-localized fields from base locale entry to other locale entries', () => {
+  it('copies non-localized fields from base locale to other locales within merged entry', () => {
     const docs = [
       { id: 'a1', contentType: 'article', locale: 'en', path: '/art/1', fields: { title: 'Hello', slug: 'hello', featured: true } },
       { id: 'a1', contentType: 'article', locale: 'fr', path: '/art/1', fields: { title: 'Bonjour' } },
@@ -312,14 +317,18 @@ describe('locale inheritance', () => {
       options: { baseLocale: 'en', locales: ['en', 'fr'] },
     });
 
-    const frEntry = report.entries.find(e => e.locale === 'fr');
-    assert.ok(frEntry);
-    // Non-localized fields should be inherited from base
-    assert.equal(frEntry.fields.slug?.en, 'hello');
-    assert.equal(frEntry.fields.featured?.en, true);
+    // Both locales merge into one entry
+    assert.equal(report.entries.length, 1);
+    const entry = report.entries[0];
+    assert.deepEqual(entry.locales.sort(), ['en', 'fr']);
+    // Non-localized fields should be inherited from base locale to fr
+    assert.equal(entry.fields.slug?.en, 'hello');
+    assert.equal(entry.fields.slug?.fr, 'hello');
+    assert.equal(entry.fields.featured?.en, true);
+    assert.equal(entry.fields.featured?.fr, true);
   });
 
-  it('does not override existing non-localized field values', () => {
+  it('overrides non-localized field values with base locale value', () => {
     const docs = [
       { id: 'a1', contentType: 'article', locale: 'en', path: '/art/1', fields: { title: 'Hello', slug: 'hello' } },
       { id: 'a1', contentType: 'article', locale: 'fr', path: '/art/1', fields: { title: 'Bonjour', slug: 'bonjour-already' } },
@@ -330,11 +339,11 @@ describe('locale inheritance', () => {
       options: { baseLocale: 'en', locales: ['en', 'fr'] },
     });
 
-    const frEntry = report.entries.find(e => e.locale === 'fr');
-    assert.ok(frEntry);
-    // slug was already set in the fr document, so it should be overridden with base value
-    // (Contentful behavior: non-localized = only one value, from base)
-    assert.equal(frEntry.fields.slug?.en, 'hello');
+    assert.equal(report.entries.length, 1);
+    const entry = report.entries[0];
+    // slug is non-localized: base value wins for all locales
+    assert.equal(entry.fields.slug?.en, 'hello');
+    assert.equal(entry.fields.slug?.fr, 'hello');
   });
 
   it('skips inheritance when there is only one locale', () => {
@@ -362,16 +371,16 @@ describe('locale inheritance', () => {
       options: { baseLocale: 'en', locales: ['en', 'fr'] },
     });
 
-    const frEntry = report.entries.find(e => e.locale === 'fr');
-    assert.ok(frEntry);
-    // title is localized: true, so it should NOT be copied from en
-    // The fr entry should have its own title
-    assert.equal(frEntry.fields.title?.en, 'Bonjour');
+    assert.equal(report.entries.length, 1);
+    const entry = report.entries[0];
+    // title is localized: true, so each locale keeps its own value
+    assert.equal(entry.fields.title?.en, 'Hello');
+    assert.equal(entry.fields.title?.fr, 'Bonjour');
   });
 
-  it('emits MISSING_BASE_LOCALE_ENTRY warning when base entry is missing', () => {
+  it('emits MISSING_BASE_LOCALE_ENTRY warning when base locale is missing', () => {
     const docs = [
-      // Only fr exists, no 'en' base entry
+      // Only fr exists, no 'en' base locale
       { id: 'a2', contentType: 'article', locale: 'fr', path: '/art/2', fields: { title: 'Bonjour' } },
     ];
     const report = simulate({
@@ -382,7 +391,6 @@ describe('locale inheritance', () => {
 
     const warning = report.warnings.find(w => w.type === 'MISSING_BASE_LOCALE_ENTRY');
     assert.ok(warning, 'Expected MISSING_BASE_LOCALE_ENTRY warning');
-    assert.ok(warning.message.includes('fr'));
     assert.ok(warning.message.includes('en'));
     assert.equal(warning.contentType, 'article');
   });
@@ -391,8 +399,8 @@ describe('locale inheritance', () => {
 // ── Entry deduplication ──────────────────────────────────────────
 
 describe('entry deduplication', () => {
-  it('removes duplicate entries with same id+locale', () => {
-    // Two docs with same path+locale will generate the same entry ID
+  it('merges duplicate entries with same path into one', () => {
+    // Two docs with same path will generate the same entry ID → merge
     const docs = [
       makeDoc({ id: 'dup1', path: '/blog/same' }),
       makeDoc({ id: 'dup2', path: '/blog/same' }),
@@ -402,27 +410,34 @@ describe('entry deduplication', () => {
       schemas: { blogPost: blogPostDef },
     });
 
-    // Should only have 1 entry (the first one wins)
+    // Should only have 1 entry (merged from same path)
     assert.equal(report.entries.length, 1);
-    const dupeWarning = report.warnings.find(w => w.type === 'DUPLICATE_ENTRY_REMOVED');
-    assert.ok(dupeWarning, 'Expected DUPLICATE_ENTRY_REMOVED warning');
-    assert.ok(dupeWarning.message.includes('1'));
   });
 
-  it('keeps entries with different locales', () => {
+  it('merges entries with different locales into one entry', () => {
+    const localizedBlogDef: ContentTypeDefinition = {
+      ...blogPostDef,
+      fields: blogPostDef.fields.map(f =>
+        f.id === 'title' ? { ...f, localized: true } : f
+      ),
+    };
     const docs = [
       makeDoc({ id: 'e1', path: '/blog/a', locale: 'en' }),
-      makeDoc({ id: 'e1', path: '/blog/a', locale: 'fr' }),
+      makeDoc({ id: 'e1', path: '/blog/a', locale: 'fr', fields: { title: 'Bonjour', body: '<p>Contenu</p>', slug: 'bonjour' } }),
     ];
     const report = simulate({
       documents: docs,
-      schemas: { blogPost: blogPostDef },
+      schemas: { blogPost: localizedBlogDef },
       options: { locales: ['en', 'fr'] },
     });
 
-    assert.equal(report.entries.length, 2);
-    const dupeWarning = report.warnings.find(w => w.type === 'DUPLICATE_ENTRY_REMOVED');
-    assert.equal(dupeWarning, undefined);
+    // Both locales merge into one entry
+    assert.equal(report.entries.length, 1);
+    const entry = report.entries[0];
+    assert.deepEqual(entry.locales.sort(), ['en', 'fr']);
+    // title is localized: each locale keeps its own value
+    assert.equal(entry.fields.title?.en, 'Hello World');
+    assert.equal(entry.fields.title?.fr, 'Bonjour');
   });
 
   it('keeps entries with different paths', () => {

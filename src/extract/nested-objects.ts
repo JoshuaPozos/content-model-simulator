@@ -150,7 +150,7 @@ function createNestedEntry(
   const entry: Entry = {
     id: entryId,
     contentType,
-    locale,
+    locales: [locale],
     sourceType: contentType,
     sourcePath: parentPath,
     fields: entryFields,

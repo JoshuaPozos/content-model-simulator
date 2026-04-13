@@ -17,7 +17,7 @@ export function generateContentBrowserHTML(report: SimulationReport, options: Br
     allEntries.push({
       id: e.id,
       contentType: e.contentType,
-      locale: e.locale,
+      locales: e.locales,
       name: resolveDisplayName(e),
       fields: e.fields,
       linkedEntryIds: e.linkedEntryIds || [],
@@ -49,7 +49,7 @@ export function generateContentBrowserHTML(report: SimulationReport, options: Br
     allEntries.push({
       id: pe.id,
       contentType: 'page',
-      locale: firstLocale,
+      locales: report.locales,
       name: pe.title,
       fields,
       linkedEntryIds: allComponentIds,
@@ -61,7 +61,7 @@ export function generateContentBrowserHTML(report: SimulationReport, options: Br
 
   function resolveDisplayName(entry: Entry): string {
     const f = entry.fields;
-    const loc = entry.locale || Object.keys(f?.internalName || {})[0] || 'en';
+    const loc = entry.locales?.[0] || Object.keys(f?.internalName || {})[0] || 'en';
     return (f?.internalName?.[loc] || f?.title?.[loc] || f?.name?.[loc] || (f as any)?.lblTitle?.[loc] || entry.id) as string;
   }
 
@@ -85,7 +85,7 @@ export function generateContentBrowserHTML(report: SimulationReport, options: Br
     entries: allEntries.map(e => ({
       id: e.id,
       contentType: e.contentType,
-      locale: e.locale,
+      locales: e.locales,
       name: e.name,
       fields: e.fields,
       linkedEntryIds: e.linkedEntryIds,
@@ -150,7 +150,7 @@ ${options.customHead || ''}
     <div class="list-col-header">
       <span>Name</span>
       <span>Content Type</span>
-      <span>Locale</span>
+      <span>Locales</span>
     </div>
     <div class="entry-list" id="entry-list"></div>
   </div>
@@ -225,7 +225,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .entry-row.selected { background: var(--blue-light); }
 .entry-row .e-name { flex: 1; font-size: 0.82rem; font-weight: 500; color: var(--gray-800); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .entry-row .e-ct { flex-shrink: 0; font-size: 0.68rem; color: var(--gray-500); background: var(--gray-100); padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
-.entry-row .e-locale { flex-shrink: 0; font-size: 0.68rem; color: var(--gray-500); width: 42px; text-align: center; }
+.entry-row .e-locales { flex-shrink: 0; display: flex; gap: 3px; }
+.locale-badge { font-size: 0.62rem; color: var(--gray-500); background: var(--gray-100); padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
 
 .list-col-header { display: flex; padding: 6px 16px; font-size: 0.68rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 1px solid var(--gray-200); gap: 8px; background: var(--gray-50); position: sticky; top: 0; z-index: 2; }
 .list-col-header span:first-child { flex: 1; }
@@ -263,7 +264,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .entry-header { padding: 16px 28px 12px; border-bottom: 1px solid var(--gray-200); background: var(--white); }
 .entry-header .ct-badge { font-size: 0.7rem; color: var(--gray-500); margin-bottom: 4px; }
 .entry-header h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 6px; }
-.entry-header .meta { display: flex; gap: 16px; font-size: 0.72rem; color: var(--gray-500); flex-wrap: wrap; }
+.entry-header .meta { display: flex; gap: 16px; font-size: 0.72rem; color: var(--gray-500); flex-wrap: wrap; align-items: center; }
+.locale-dropdown { padding: 4px 10px; font-size: 0.78rem; border: 1px solid var(--blue); border-radius: var(--radius); background: var(--blue-light); color: var(--blue); font-weight: 500; cursor: pointer; outline: none; }
+.locale-dropdown:hover { background: var(--blue); color: var(--white); }
 
 
 .detail-tabs { display: flex; gap: 0; background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 28px; }
@@ -322,10 +325,11 @@ DATA.entries.forEach(e => {
 const listEl = document.getElementById('entry-list');
 const countEl = document.getElementById('entry-count');
 let selectedId = null;
+let selectedLocale = DATA.locales[0] || 'en';
 
 function getDisplayName(entry) {
   const f = entry.fields;
-  const loc = entry.locale || Object.keys(f?.internalName || {})[0] || 'en';
+  const loc = selectedLocale || entry.locales?.[0] || Object.keys(f?.internalName || {})[0] || 'en';
   return f?.internalName?.[loc] || f?.title?.[loc] || f?.name?.[loc] || f?.lblTitle?.[loc] || entry.id;
 }
 
@@ -336,7 +340,7 @@ function renderList() {
 
   let filtered = DATA.entries;
   if (ctFilter) filtered = filtered.filter(e => e.contentType === ctFilter);
-  if (locFilter) filtered = filtered.filter(e => e.locale === locFilter);
+  if (locFilter) filtered = filtered.filter(e => e.locales && e.locales.includes(locFilter));
   if (search) filtered = filtered.filter(e => {
     const name = getDisplayName(e).toLowerCase();
     return name.includes(search) || e.id.toLowerCase().includes(search) || e.contentType.toLowerCase().includes(search);
@@ -348,10 +352,11 @@ function renderList() {
   for (const entry of filtered) {
     const row = document.createElement('div');
     row.className = 'entry-row' + (entry.id === selectedId ? ' selected' : '');
+    const localeBadges = (entry.locales || []).map(l => '<span class="locale-badge">' + esc(l) + '</span>').join(' ');
     row.innerHTML =
       '<span class="e-name">' + esc(getDisplayName(entry)) + '</span>' +
       '<span class="e-ct">' + esc(entry.contentType) + '</span>' +
-      '<span class="e-locale">' + esc(entry.locale) + '</span>';
+      '<span class="e-locales">' + localeBadges + '</span>';
     row.onclick = () => openEntry(entry.id);
     listEl.appendChild(row);
   }
@@ -379,7 +384,9 @@ function openEntry(entryId, pushToStack) {
   const ctDef = DATA.contentTypes[entry.contentType];
   const ctName = ctDef?.name || entry.contentType;
   const entryName = getDisplayName(entry);
-  const locale = entry.locale || 'en';
+  const locale = selectedLocale;
+  const entryLocales = entry.locales || [locale];
+  const activeLocale = entryLocales.includes(selectedLocale) ? selectedLocale : entryLocales[0];
 
   let breadcrumbHtml = '<div class="breadcrumb">';
   if (navStack.length > 1) {
@@ -393,12 +400,25 @@ function openEntry(entryId, pushToStack) {
   }
   breadcrumbHtml += '<span class="current">' + esc(ctName) + ' / ' + esc(entryName) + '</span></div>';
 
+  // Locale selector in the header (like Contentful)
+  let localeSelector = '';
+  if (DATA.locales.length > 1) {
+    const locOpts = DATA.locales.map(l => {
+      const hasData = entryLocales.includes(l);
+      const sel = l === activeLocale ? ' selected' : '';
+      const label = hasData ? l : l + ' (no data)';
+      return '<option value="' + esc(l) + '"' + sel + '>' + esc(label) + '</option>';
+    }).join('');
+    localeSelector = '<select class="locale-dropdown" id="editor-locale-select" onchange="switchEditorLocale(this.value)">' + locOpts + '</select>';
+  }
+
   let headerHtml = '<div class="entry-header">' +
     '<div class="ct-badge">← ' + esc(ctName) + '</div>' +
     '<h2>' + esc(entryName) + '</h2>' +
     '<div class="meta">' +
-      '<span>Locale: <strong>' + esc(locale) + '</strong></span>' +
+      localeSelector +
       '<span>ID: <code>' + esc(entry.id) + '</code></span>' +
+      '<span>Locales: <strong>' + esc(entryLocales.join(', ')) + '</strong></span>' +
       (entry.sourcePath ? '<span>Source: <code>' + esc(entry.sourcePath) + '</code></span>' : '') +
     '</div></div>';
 
@@ -417,22 +437,24 @@ function openEntry(entryId, pushToStack) {
     const fName = fDef?.name || fieldId;
     const fType = fDef?.type || 'Unknown';
     const isRequired = fDef?.required || false;
+    const isLocalized = fDef?.localized !== false;
 
     const fieldWrapper = entry.fields[fieldId];
-    const localeKeys = Object.keys(fieldWrapper);
 
-    for (const loc of localeKeys) {
-      const val = fieldWrapper[loc];
-      fieldsHtml += '<div class="field-card">';
-      fieldsHtml += '<div class="field-label">';
-      fieldsHtml += '<span>' + esc(fName) + '</span>';
-      if (isRequired) fieldsHtml += '<span class="req">*</span>';
-      if (localeKeys.length > 1) fieldsHtml += '<span class="locale-tag">| ' + esc(loc) + '</span>';
-      fieldsHtml += '<span class="ftype">' + esc(fType) + '</span>';
-      fieldsHtml += '</div>';
-      fieldsHtml += renderFieldValue(val, fDef, loc);
-      fieldsHtml += '</div>';
-    }
+    // Show value for active locale only
+    const val = fieldWrapper[activeLocale] !== undefined ? fieldWrapper[activeLocale] : fieldWrapper[Object.keys(fieldWrapper)[0]];
+    const displayLocale = fieldWrapper[activeLocale] !== undefined ? activeLocale : Object.keys(fieldWrapper)[0];
+
+    fieldsHtml += '<div class="field-card">';
+    fieldsHtml += '<div class="field-label">';
+    fieldsHtml += '<span>' + esc(fName) + '</span>';
+    if (isRequired) fieldsHtml += '<span class="req">*</span>';
+    if (!isLocalized) fieldsHtml += '<span class="locale-tag">non-localized</span>';
+    else if (displayLocale !== activeLocale) fieldsHtml += '<span class="locale-tag">fallback: ' + esc(displayLocale) + '</span>';
+    fieldsHtml += '<span class="ftype">' + esc(fType) + '</span>';
+    fieldsHtml += '</div>';
+    fieldsHtml += renderFieldValue(val, fDef, activeLocale);
+    fieldsHtml += '</div>';
   }
   fieldsHtml += '</div>';
 
@@ -672,6 +694,11 @@ document.getElementById('locale-filter').onchange = function() {
   renderList();
 };
 document.getElementById('search-input').oninput = renderList;
+
+function switchEditorLocale(loc) {
+  selectedLocale = loc;
+  if (selectedId) openEntry(selectedId, false);
+}
 
 renderList();
 

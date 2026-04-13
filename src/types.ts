@@ -71,7 +71,7 @@ export interface EntryFields {
 export interface Entry {
   id: string;
   contentType: string;
-  locale: string;
+  locales: string[];
   sourceId?: string | null;
   sourcePath?: string | null;
   sourceType: string;

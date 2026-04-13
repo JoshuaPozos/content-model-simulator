@@ -207,23 +207,23 @@ export function generateMockData(
   const documents: Document[] = [];
   const assetIds = new Set<string>();
 
-  // Pre-generate entry IDs so Link:Entry fields can reference them
+  // Pre-generate entry IDs so Link:Entry fields can reference them.
+  // IDs are locale-independent — same entry has same ID across all locales.
   const mockEntryIds: Record<string, string[]> = {};
   for (const [ctId] of Object.entries(allSchemas)) {
     mockEntryIds[ctId] = [];
     for (let i = 0; i < entriesPerType; i++) {
-      for (const locale of locales) {
-        const id = generateEntryId(ctId, `${name}-mock-${i}-${locale}`);
-        mockEntryIds[ctId].push(id);
-      }
+      const path = `/${ctId}/${SAMPLE_SLUGS[i % SAMPLE_SLUGS.length]}`;
+      const id = generateEntryId(ctId, path);
+      mockEntryIds[ctId].push(id);
     }
   }
 
   let idCounter = 0;
   for (const [ctId, ctDef] of Object.entries(allSchemas)) {
     for (let i = 0; i < entriesPerType; i++) {
+      const path = `/${ctId}/${SAMPLE_SLUGS[i % SAMPLE_SLUGS.length]}`;
       for (const locale of locales) {
-        const entryId = mockEntryIds[ctId][i * locales.length + locales.indexOf(locale)];
         const data: Record<string, unknown> = {};
 
         for (const field of ctDef.fields || []) {
@@ -243,8 +243,8 @@ export function generateMockData(
         documents.push({
           contentType: ctId,
           locale,
-          path: `/${ctId}/${SAMPLE_SLUGS[i % SAMPLE_SLUGS.length]}`,
-          id: entryId,
+          path,
+          id: mockEntryIds[ctId][i],
           data,
         });
         idCounter++;
