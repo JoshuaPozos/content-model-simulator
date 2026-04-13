@@ -1,289 +1,250 @@
 # content-model-simulator
 
+[![npm](https://img.shields.io/npm/v/content-model-simulator)](https://www.npmjs.com/package/content-model-simulator)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
-![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![Tests](https://img.shields.io/badge/tests-396%20passing-brightgreen)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
-![Tests](https://img.shields.io/badge/tests-358%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-Preview your Contentful content model locally — **zero dependencies, simulation runs 100% offline**.
+**Preview Contentful content models locally before touching your real space.**
 
-Simulate how your content types, entries, and assets **will look** in Contentful before you commit to an actual migration. The simulation runs **entirely offline** — it never uploads data and never modifies your Contentful space. You get an interactive local preview so you can validate your content model, catch errors early, and iterate with confidence.
+Stop iterating blind. Simulate content types, entries, references, and validation errors entirely offline — catch mistakes before they hit production, not after.
 
-Works for **designing content models from scratch**, **working with your existing Contentful model**, and **previewing migrations from other CMSs**.
+<p align="center">
+  <img src="docs/assets/content-browser-01.png" alt="Content Browser — browse entries, inspect fields, follow references" width="800" />
+</p>
 
-> **This is a simulation tool, not a migration tool.** It generates a local preview of your content model and entries. The actual migration to Contentful (via `contentful-migration`, `contentful-import`, or the Management API) is a separate step you perform once you're satisfied with the simulation.
+## Why this exists
 
-## Features
+If you work with Contentful, you know the friction:
 
-- **Zero dependencies** — pure Node.js (≥ 22), nothing to install beyond the package
-- **Three workflows** — design from scratch, pull your current Contentful model, or preview a CMS migration
-- **Pull from Contentful** — download your existing content types and entries with `cms-sim pull` (read-only, uses CDA token)
-- **Interactive Content Browser** — replica of the Contentful UI to browse entries, filter by type/locale, inspect fields, follow references
-- **Content Model Graph** — SVG-based interactive diagram showing content types, fields, and relationships with pan/zoom/drag
-- **Mock Data Generator** — auto-generates realistic sample entries from your schemas with field-type-aware values
-- **Contentful Validation** — catches the same errors Contentful would reject: missing required fields, unknown fields, unresolved links
-- **Contentful Schema Format** — uses the exact Contentful content type definition format (Symbol, Text, RichText, Link, Array, etc.)
-- **Universal Reader** — reads NDJSON, JSON arrays, directories of JSON files, and WordPress XML (WXR) exports
-- **WordPress WXR Reader** — zero-dependency parser for WordPress eXtended RSS exports; auto-detects `.xml` files, extracts posts, pages, attachments, authors, categories, tags
-- **Rich Text support** — zero-dependency HTML → Contentful Rich Text JSON converter; auto-converts HTML strings in RichText fields during simulation
-- **Watch mode** — `--watch` re-runs simulation automatically when schemas or data change, with browser auto-reload
-- **Schema diff** — `cms-sim diff` compares two schema directories or simulation outputs side-by-side
-- **Validate subcommand** — `cms-sim validate` for CI/CD pipelines with `--json` output and exit code 1 on errors
-- **Scaffold subcommand** — `cms-sim scaffold` auto-generates Contentful schemas and transforms from a WordPress XML export
-- **Init subcommand** — `cms-sim init` scaffolds a new content model project with example schemas
-- **Plugin system** — `--plugins` auto-discovers schemas, transforms, and setup files
-- **Locale inheritance** — non-localized fields automatically shared from base locale to other locales
-- **Custom HTML templates** — inject custom CSS and `<head>` content into generated HTML
-- **Extensible** — register custom transformers, asset detectors, and nested object extractors
+- You design a content model, push it, realize a field is wrong, roll back, try again
+- You plan a CMS migration, but can't see how the data will actually look in Contentful until you import it
+- You change a content type and have no idea if existing entries will break
 
-## Quick Start
+This tool lets you **simulate everything locally first**. Define your schemas, point at your data (or let it generate mock data), and get an interactive preview that looks like the real Contentful dashboard — without uploading anything.
+
+## 30-second quick start
 
 ```bash
-npm install content-model-simulator
-```
-
-### Workflow 1: Preview a content model (no data needed)
-
-Define your Contentful content types and instantly see how they'll look — the simulator generates realistic mock entries for you.
-
-```bash
-# Just point at your schemas directory
+npx cms-sim init my-project
+cd my-project
 npx cms-sim --schemas=schemas/ --open
-
-# With multiple locales
-npx cms-sim --schemas=schemas/ --locales=en,es,fr --open
-
-# More sample entries per type
-npx cms-sim --schemas=schemas/ --entries-per-type=10 --open
 ```
 
-### Workflow 2: Work with your existing Contentful model
+That's it. You now have a local Contentful preview with mock entries in your browser.
 
-Download your current content types (and optionally entries) from Contentful, modify them locally, and simulate how the changes would look — all before touching your real space.
+## Who this is for
+
+- **Content architects** designing or iterating on Contentful content models
+- **Developers** planning a migration from WordPress, Sanity, or another CMS to Contentful
+- **Teams** that want to validate content model changes before deploying them
+
+## Who this is NOT for
+
+- Running the actual migration (use `contentful-migration`, `contentful-import`, or the Management API for that)
+- Editing content (this is read-only simulation, not a CMS)
+- Non-Contentful platforms (schemas use the exact Contentful format)
+
+## What you get
+
+<table>
+<tr>
+<td width="50%">
+
+### Content Browser
+
+Browse entries exactly like in Contentful. Filter by content type and locale, inspect every field, follow references between entries.
+
+</td>
+<td width="50%">
+
+### Content Model Graph
+
+Interactive SVG diagram of your content types and their relationships. Zoom, pan, drag. See the full picture at a glance.
+
+</td>
+</tr>
+<tr>
+<td>
+<img src="docs/assets/content-browser-02.png" alt="Content Browser — references view" width="100%" />
+</td>
+<td>
+<img src="docs/assets/visual-report-01.png" alt="Content Model Graph — interactive SVG" width="100%" />
+</td>
+</tr>
+</table>
+
+<details>
+<summary><strong>Multi-locale support</strong> — see how localized content renders per locale</summary>
+<br/>
+<img src="docs/assets/content-browser-03.png" alt="Content Browser — multi-locale fields (en-US, es-MX)" width="800" />
+</details>
+
+## Core capabilities
+
+| Capability | What it does |
+|---|---|
+| **Offline simulation** | 10-step pipeline: load → validate → transform → link → resolve → convert → merge → validate → stats → report. Zero network calls. |
+| **Contentful validation** | Catches missing required fields, unknown fields, unresolved links, field type mismatches — the same errors Contentful would reject. |
+| **Pull from Contentful** | `cms-sim pull` downloads your existing content model and entries (read-only CDA token). Modify locally, simulate, then apply when ready. |
+| **Mock data generator** | No data? No problem. Auto-generates realistic entries from your schemas with field-type-aware values and cross-references. |
+| **CMS migration preview** | Feed WordPress XML, Sanity NDJSON, or generic JSON exports alongside your Contentful schemas. See exactly how the migrated content will look. |
+| **CI/CD validation** | `cms-sim validate --json` for pipelines. Exit code 1 on errors. |
+
+## Three workflows
+
+### 1. Design a content model (no data needed)
 
 ```bash
-# Download your content model (read-only, uses CDA token)
-npx cms-sim pull --space-id=YOUR_SPACE_ID --access-token=YOUR_CDA_TOKEN --output=my-project/
+npx cms-sim --schemas=schemas/ --open
+npx cms-sim --schemas=schemas/ --locales=en,es,fr --entries-per-type=10 --open
+```
 
-# Preview it locally with mock data
+### 2. Work with your existing Contentful model
+
+```bash
+# Download your current model (read-only)
+npx cms-sim pull --space-id=YOUR_SPACE --access-token=YOUR_CDA_TOKEN --output=my-project/
+
+# Preview locally, modify schemas, re-run
 npx cms-sim --schemas=my-project/schemas/ --open
 
-# Download model + entries, then preview with real data
+# With real entries
 npx cms-sim pull --space-id=abc123 --access-token=TOKEN --include-entries --output=my-project/
 npx cms-sim --schemas=my-project/schemas/ --input=my-project/data/entries.ndjson --open
 ```
 
-Now you can edit the schema files in `my-project/schemas/`, add new content types, modify fields, and re-run the simulation to see how changes would look — without risk to your live space.
-
-### Workflow 3: Preview a migration (with source data)
-
-Feed real data exported from another CMS alongside your Contentful schemas to preview how the migrated content **would look** in Contentful. No data is sent anywhere — the simulation runs 100% locally.
+### 3. Preview a CMS migration
 
 ```bash
-# From NDJSON export
-npx cms-sim --schemas=schemas/ --input=data/export.ndjson --open
+# WordPress XML
+npx cms-sim --schemas=schemas/ --input=data/export.xml --open
 
-# With custom transformers for the source CMS format
-npx cms-sim --schemas=schemas/ --input=data/ --transforms=transforms/ --open
+# Sanity NDJSON
+npx cms-sim --schemas=schemas/ --input=data/export.ndjson --transforms=transforms/ --open
 
-# With locale mapping
-npx cms-sim --schemas=schemas/ --input=data/ --locale-map=locales.json --verbose --open
+# Auto-scaffold schemas from WordPress
+npx cms-sim scaffold --input=data/export.xml --output=my-project/
 ```
+
+## What this tool does NOT do
+
+- **Does NOT upload, create, or modify anything** in your Contentful space
+- **Does NOT run migrations** — that's `contentful-migration` / `contentful-import`
+- **Does NOT make network calls** during simulation — `cms-sim pull` is the only command that reads from Contentful (read-only CDA token)
+
+> **This is a simulation tool, not a migration tool.** Once your simulation looks correct, you use Contentful's own tools to perform the actual migration.
+
+---
 
 ## CLI Reference
 
 ### Simulate (default)
 
 ```
-cms-sim --schemas=<dir> [options]                  # Preview content model
-cms-sim --schemas=<dir> --input=<path> [options]   # Preview migration locally
+cms-sim --schemas=<dir> [options]
 
 REQUIRED:
   --schemas=<dir>        Content type definitions directory (.js/.mjs/.json)
 
 DATA SOURCE (optional):
-  --input=<path>         Source data (NDJSON, JSON, or directory)
-                         If omitted, mock entries are auto-generated from schemas
+  --input=<path>         Source data (NDJSON, JSON, XML, or directory)
+                         If omitted, mock entries are auto-generated
 
 OPTIONS:
   --transforms=<dir>     Custom transformer modules directory
   --plugins=<dir>        Plugin directory (auto-discovers schemas/, transforms/, setup files)
   --config=<file>        JSON config file (cms-sim.config.json)
   --output=<dir>         Output directory (default: ./output/<name>_<timestamp>)
-  --name=<string>        Project name (default: derived from input or schemas dir)
+  --name=<string>        Project name
   --base-locale=<code>   Base locale (default: en)
-  --locales=<list>       Comma-separated locale codes (default: base locale only)
+  --locales=<list>       Comma-separated locale codes
   --locale-map=<file>    JSON file mapping source → target locale codes
-  --entries-per-type=<n> Mock entries per content type (default: 3, only without --input)
-  --content-type=<id>    Filter simulation to a specific content type
-  --format=<fmt>         Input format: ndjson, json-array, json-dir, wxr, auto (default: auto)
-  --json                 JSON output only (skip HTML generation)
-  --open                 Auto-open HTML report in browser
-  --watch, -w            Re-run simulation on file changes (auto-reload in browser)
-  --template-css=<file>  Custom CSS file to inject into HTML output
-  --template-head=<file> Custom HTML to inject into <head>
+  --entries-per-type=<n> Mock entries per content type (default: 3)
+  --content-type=<id>    Filter to a specific content type
+  --format=<fmt>         Input format: ndjson, json-array, json-dir, wxr, sanity, auto (default: auto)
+  --json                 JSON output only (skip HTML)
+  --open                 Auto-open in browser
+  --watch, -w            Re-run on file changes with browser auto-reload
+  --template-css=<file>  Custom CSS for HTML output
+  --template-head=<file> Custom HTML for <head>
   --verbose, -v          Verbose logging
   --help, -h             Show help
 ```
 
-### Pull from Contentful
+### Pull
 
 ```
 cms-sim pull --space-id=<id> --access-token=<token> [options]
 
-REQUIRED:
-  --space-id=<id>        Contentful space ID
-  --access-token=<tok>   CDA access token (read-only)
-                         Or set CONTENTFUL_SPACE_ID / CONTENTFUL_ACCESS_TOKEN env vars
-
-OPTIONS:
   --environment=<env>    Environment (default: master)
   --output=<dir>         Output directory (default: ./contentful-export)
-  --include-entries      Also download published entries
-  --include-assets       Download asset files (images, documents, etc.)
-  --max-entries=<n>      Max entries to download (default: 1000)
+  --include-entries      Download published entries
+  --include-assets       Download asset files
+  --max-entries=<n>      Max entries (default: 1000)
   --content-type=<id>    Filter entries by content type
-  --preview              Use Content Preview API (drafts) instead of CDA
-  --verbose, -v          Verbose logging
+  --preview              Use Content Preview API (drafts)
 ```
 
-### Validate (CI/CD)
+### Validate
 
 ```
 cms-sim validate --schemas=<dir> [options]
 
-Runs the simulation pipeline and outputs only errors/warnings (no HTML).
-Exits with code 1 if validation errors are found.
-
-OPTIONS:
-  --input=<path>         Source data (optional — mock data if omitted)
-  --transforms=<dir>     Custom transformer modules
-  --plugins=<dir>        Plugin directory
-  --format=<fmt>         Input format (default: auto)
-  --json                 Machine-readable JSON output
-  --verbose, -v          Verbose logging
+Exits with code 1 if errors found. Use --json for machine-readable output.
 ```
 
 ### Diff
 
 ```
-cms-sim diff --old=<dir> --new=<dir>
+cms-sim diff --old=<dir> --new=<dir> [--json]
 
-Compare two schema directories or simulation output directories.
-Auto-detects simulation outputs (via manifest.json) for report-level diff.
-
-OPTIONS:
-  --json                 Machine-readable JSON output
+Compare two schema directories or simulation outputs.
 ```
 
-### Init
+### Init & Scaffold
 
 ```
-cms-sim init [<name>]
-
-Scaffold a new content model project with example schemas and a README.
+cms-sim init [<name>]              # Scaffold a new project with example schemas
+cms-sim scaffold --input=<file.xml> # Auto-generate schemas from WordPress XML
 ```
 
-### Scaffold
-
-```
-cms-sim scaffold --input=<file.xml> [--output=<dir>]
-
-Auto-generate Contentful schemas and transforms from a WordPress XML export.
-```
-
-> **Security:** `cms-sim pull` only reads from Contentful — it never writes. Use a Content Delivery API (CDA) token, which is read-only. Your token is never stored or logged.
-
-> **Security:** Schema files (`--schemas`) and transformer files (`--transforms`) are loaded via dynamic `import()` and execute as JavaScript. Only point these flags at directories you trust — never at untrusted or user-supplied paths.
+> **Security:** `cms-sim pull` only reads from Contentful — never writes. Schema and transform files are loaded via dynamic `import()`. Only point `--schemas` / `--transforms` at directories you trust.
 
 ## Programmatic API
 
-### From scratch (mock data)
-
 ```js
 import {
-  simulate,
-  generateMockData,
-  SchemaRegistry,
-  generateContentBrowserHTML,
-  generateModelGraphHTML,
-  writeReport,
+  simulate, generateMockData, SchemaRegistry,
+  generateContentBrowserHTML, generateModelGraphHTML, writeReport,
 } from 'content-model-simulator';
-import fs from 'node:fs';
-import path from 'node:path';
 
-// 1. Load schemas
+// Load schemas
 const schemas = new SchemaRegistry();
 await schemas.loadFromDirectory('./schemas');
 
-// 2. Generate mock entries
+// Generate mock data (or use readDocuments() for real data)
 const { documents, assets } = generateMockData(schemas, {
   entriesPerType: 5,
   locales: ['en', 'es'],
 });
 
-// 3. Simulate
+// Simulate
 const report = simulate({
-  documents,
-  schemas,
-  assets,
+  documents, schemas, assets,
   options: { name: 'my-model', locales: ['en', 'es'] },
 });
 
-// 4. Write JSON output (entries, content-types, manifest, validation)
-const outDir = './output/my-model';
-writeReport(report, outDir);
-
-// 5. Generate HTML reports
-fs.writeFileSync(path.join(outDir, 'content-browser.html'), generateContentBrowserHTML(report));
-fs.writeFileSync(path.join(outDir, 'visual-report.html'), generateModelGraphHTML(report));
+// Write outputs
+writeReport(report, './output');
+fs.writeFileSync('./output/content-browser.html', generateContentBrowserHTML(report));
+fs.writeFileSync('./output/visual-report.html', generateModelGraphHTML(report));
 ```
 
-### With real data (migration)
-
-```js
-import {
-  simulate,
-  readDocuments,
-  SchemaRegistry,
-  TransformerRegistry,
-  generateContentBrowserHTML,
-  generateModelGraphHTML,
-  writeReport,
-} from 'content-model-simulator';
-import fs from 'node:fs';
-import path from 'node:path';
-
-// 1. Read source documents
-const documents = await readDocuments('./data/export.ndjson');
-
-// 2. Load content type schemas
-const schemas = new SchemaRegistry();
-await schemas.loadFromDirectory('./schemas');
-
-// 3. Run simulation
-const report = simulate({
-  documents,
-  schemas,
-  transformers: new TransformerRegistry(),
-  options: {
-    name: 'my-project',
-    baseLocale: 'en',
-  },
-});
-
-// 4. Generate outputs
-const outDir = './output/my-project';
-writeReport(report, outDir);  // JSON: entries, content-types, manifest, validation
-
-fs.writeFileSync(path.join(outDir, 'content-browser.html'), generateContentBrowserHTML(report));
-fs.writeFileSync(path.join(outDir, 'visual-report.html'), generateModelGraphHTML(report));
-```
+Full API exports: `simulate`, `readDocuments`, `readDocumentsStream`, `SchemaRegistry`, `TransformerRegistry`, `generateMockData`, `generateContentBrowserHTML`, `generateModelGraphHTML`, `writeReport`, `diffSchemas`, `diffReports`, `pullContentful`, `readWXR`, `parseWXR`, `readSanity`, `parseSanity`, `htmlToRichText`, `looksLikeHTML`, `isRichTextDocument`, `stripGutenbergComments`.
 
 ## Content Type Schema Format
-
-Schemas follow the Contentful content type definition structure:
 
 ```js
 // schemas/blogPost.js
@@ -293,62 +254,34 @@ export default {
   displayField: 'title',
   fields: [
     { id: 'title', name: 'Title', type: 'Symbol', required: true, localized: true },
-    { id: 'body', name: 'Body', type: 'Text', required: true, localized: true },
-    { id: 'author', name: 'Author', type: 'Symbol', localized: false },
-    { id: 'publishDate', name: 'Publish Date', type: 'Date', required: true },
+    { id: 'body', name: 'Body', type: 'RichText', required: true, localized: true },
+    { id: 'author', name: 'Author', type: 'Link', linkType: 'Entry' },
     { id: 'heroImage', name: 'Hero Image', type: 'Link', linkType: 'Asset' },
     { id: 'tags', name: 'Tags', type: 'Array', items: { type: 'Symbol' } },
-    { id: 'relatedPosts', name: 'Related Posts', type: 'Array', items: { type: 'Link', linkType: 'Entry' } },
   ],
 };
 ```
 
-Schemas can be `.js` (ESM default export), `.mjs`, or `.json` files.
-
-## Source Document Format
-
-Each source document should be an object with at minimum:
-
-```json
-{
-  "contentType": "blogPost",
-  "locale": "en",
-  "path": "/blog/my-post",
-  "data": {
-    "title": "My Post",
-    "body": "<p>Hello world</p>",
-    "author": "Jane Doe"
-  }
-}
-```
-
-The `data` object holds the field values. The reader auto-detects NDJSON (one JSON object per line), JSON arrays, or directories of individual `.json` files.
+Schemas can be `.js` (ESM default export), `.mjs`, or `.json` files. Uses the exact Contentful content type definition format.
 
 ## Custom Transformers
-
-For content types that need special mapping logic:
 
 ```js
 // transforms/event.js
 export function register(registry) {
-  registry.register('sourceEventType', (doc, locale, options) => {
-    return {
-      id: `event-${doc.data.slug}-${locale}`,
-      contentType: 'event',
-      locale,
-      fields: {
-        title: { [locale]: doc.data.eventName },
-        date: { [locale]: new Date(doc.data.timestamp).toISOString() },
-        location: { [locale]: `${doc.data.city}, ${doc.data.country}` },
-      },
-    };
-  }, 'event');
+  registry.register('sourceType', (doc, locale, options) => ({
+    id: `event-${doc.data.slug}-${locale}`,
+    contentType: 'event',
+    locale,
+    fields: {
+      title: { [locale]: doc.data.eventName },
+      date: { [locale]: new Date(doc.data.timestamp).toISOString() },
+    },
+  }), 'event');
 }
 ```
 
 ## Config File
-
-Create `cms-sim.config.json` in your project root:
 
 ```json
 {
@@ -358,80 +291,29 @@ Create `cms-sim.config.json` in your project root:
   "transforms": "./transforms",
   "baseLocale": "en",
   "locales": ["en", "es", "fr"],
-  "localeMap": {
-    "en_US": "en",
-    "es_MX": "es",
-    "fr_FR": "fr"
-  },
-  "fieldGroupMap": {
-    "heroSlider": {
-      "items": "heroSliderItem"
-    }
-  }
+  "localeMap": { "en_US": "en", "es_MX": "es" }
 }
 ```
 
 ## Output Structure
 
 ```
-output/my-project_2024-01-15/
-├── content-types/        # Individual CT definition JSON files
-│   ├── blogPost.json
-│   └── event.json
+output/my-project_2026-04-12/
+├── content-types/        # CT definition JSON files
 ├── entries/              # Entries grouped by content type
-│   ├── blogPost.json
-│   └── event.json
-├── assets.json           # All extracted assets
-├── validation-report.json # Errors and warnings
+├── assets.json           # Extracted assets
+├── validation-report.json
 ├── manifest.json         # Summary stats
 ├── content-browser.html  # Interactive entry browser
 └── visual-report.html    # Content model graph
 ```
 
-## Report Object
-
-The `simulate()` function returns a report with this shape:
-
-```js
-{
-  page: 'my-project',
-  timestamp: '2024-01-15T10:30:00',
-  baseLocale: 'en',
-  locales: ['en', 'es'],
-  contentTypes: { /* CT definitions with entryCount */ },
-  entries: [ /* transformed entries */ ],
-  assets: [ /* extracted assets */ ],
-  pageEntry: null, // or page-level entry if detected
-  errors: [ /* { type, contentType, message, entryId } */ ],
-  warnings: [ /* { type, contentType, field, entryId } */ ],
-  stats: {
-    totalCTs: 5,
-    totalComponents: 42,
-    totalAssets: 12,
-    totalLocales: 2,
-    totalErrors: 0,
-    totalWarnings: 3,
-  },
-}
-```
-
 ## CMS Migration Guides
 
-Step-by-step guides for **previewing** migrations from popular CMSs. Each guide covers exporting data from the source CMS, mapping schemas to Contentful field types, writing custom transformers, and running a local simulation to verify everything looks correct before you perform the actual migration.
-
 | Source CMS | Guide |
-|------------|-------|
-| WordPress | [examples/wordpress/](examples/wordpress/) — full end-to-end example with real Gutenberg data |
-| Sanity | [examples/sanity/](examples/sanity/) — full end-to-end example with multi-locale NDJSON data |
-
-## What This Tool Does NOT Do
-
-- **Does NOT create or modify content types** in your Contentful space
-- **Does NOT upload entries or assets** to Contentful
-- **Does NOT run `contentful-migration` scripts** — that's a separate step
-- **Does NOT write anything to Contentful** — `cms-sim pull` is read-only; the simulation is 100% offline
-
-The only network call this tool makes is `cms-sim pull`, which **reads** your content model using a CDA (read-only) token. The simulation itself runs entirely offline. Once your simulation looks correct, you use Contentful's own tools (`contentful-migration`, `contentful-import`, or the Management API) to perform the actual migration.
+|---|---|
+| WordPress | [examples/wordpress/](examples/wordpress/) — end-to-end with real Gutenberg data |
+| Sanity | [examples/sanity/](examples/sanity/) — end-to-end with multi-locale NDJSON |
 
 ## License
 
