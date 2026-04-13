@@ -422,7 +422,7 @@ Step-by-step guides for **previewing** migrations from popular CMSs. Each guide 
 | Source CMS | Guide |
 |------------|-------|
 | WordPress | [examples/wordpress/](examples/wordpress/) — full end-to-end example with real Gutenberg data |
-| Sanity | [examples/migration-guides/sanity/](examples/migration-guides/sanity/) — coming soon |
+| Sanity | [examples/sanity/](examples/sanity/) — full end-to-end example with multi-locale NDJSON data |
 
 ## What This Tool Does NOT Do
 
