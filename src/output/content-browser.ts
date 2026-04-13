@@ -265,8 +265,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .entry-header .ct-badge { font-size: 0.7rem; color: var(--gray-500); margin-bottom: 4px; }
 .entry-header h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 6px; }
 .entry-header .meta { display: flex; gap: 16px; font-size: 0.72rem; color: var(--gray-500); flex-wrap: wrap; align-items: center; }
-.locale-dropdown { padding: 4px 10px; font-size: 0.78rem; border: 1px solid var(--blue); border-radius: var(--radius); background: var(--blue-light); color: var(--blue); font-weight: 500; cursor: pointer; outline: none; }
-.locale-dropdown:hover { background: var(--blue); color: var(--white); }
 
 
 .detail-tabs { display: flex; gap: 0; background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 28px; }
@@ -280,6 +278,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .field-label .req { color: var(--red); font-weight: 700; }
 .field-label .ftype { margin-left: auto; font-size: 0.65rem; background: var(--gray-100); padding: 1px 6px; border-radius: 3px; color: var(--gray-500); }
 .field-label .locale-tag { font-size: 0.65rem; color: var(--gray-400); font-style: italic; }
+.field-label .locale-indicator { font-style: normal; color: var(--gray-500); background: var(--gray-100); padding: 1px 6px; border-radius: 3px; }
 .field-value { padding: 4px 16px 12px; font-size: 0.88rem; color: var(--gray-800); min-height: 28px; word-break: break-word; }
 .field-value.empty { color: var(--gray-400); font-style: italic; font-size: 0.82rem; }
 .field-value code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.8rem; background: var(--gray-100); padding: 1px 4px; border-radius: 3px; }
@@ -325,11 +324,10 @@ DATA.entries.forEach(e => {
 const listEl = document.getElementById('entry-list');
 const countEl = document.getElementById('entry-count');
 let selectedId = null;
-let selectedLocale = DATA.locales[0] || 'en';
 
 function getDisplayName(entry) {
   const f = entry.fields;
-  const loc = selectedLocale || entry.locales?.[0] || Object.keys(f?.internalName || {})[0] || 'en';
+  const loc = entry.locales?.[0] || DATA.locales[0] || Object.keys(f?.internalName || {})[0] || 'en';
   return f?.internalName?.[loc] || f?.title?.[loc] || f?.name?.[loc] || f?.lblTitle?.[loc] || entry.id;
 }
 
@@ -384,9 +382,8 @@ function openEntry(entryId, pushToStack) {
   const ctDef = DATA.contentTypes[entry.contentType];
   const ctName = ctDef?.name || entry.contentType;
   const entryName = getDisplayName(entry);
-  const locale = selectedLocale;
-  const entryLocales = entry.locales || [locale];
-  const activeLocale = entryLocales.includes(selectedLocale) ? selectedLocale : entryLocales[0];
+  const entryLocales = entry.locales || [DATA.locales[0] || 'en'];
+  const activeLocale = entryLocales[0];
 
   let breadcrumbHtml = '<div class="breadcrumb">';
   if (navStack.length > 1) {
@@ -400,23 +397,10 @@ function openEntry(entryId, pushToStack) {
   }
   breadcrumbHtml += '<span class="current">' + esc(ctName) + ' / ' + esc(entryName) + '</span></div>';
 
-  // Locale selector in the header (like Contentful)
-  let localeSelector = '';
-  if (DATA.locales.length > 1) {
-    const locOpts = DATA.locales.map(l => {
-      const hasData = entryLocales.includes(l);
-      const sel = l === activeLocale ? ' selected' : '';
-      const label = hasData ? l : l + ' (no data)';
-      return '<option value="' + esc(l) + '"' + sel + '>' + esc(label) + '</option>';
-    }).join('');
-    localeSelector = '<select class="locale-dropdown" id="editor-locale-select" onchange="switchEditorLocale(this.value)">' + locOpts + '</select>';
-  }
-
   let headerHtml = '<div class="entry-header">' +
     '<div class="ct-badge">← ' + esc(ctName) + '</div>' +
     '<h2>' + esc(entryName) + '</h2>' +
     '<div class="meta">' +
-      localeSelector +
       '<span>ID: <code>' + esc(entry.id) + '</code></span>' +
       '<span>Locales: <strong>' + esc(entryLocales.join(', ')) + '</strong></span>' +
       (entry.sourcePath ? '<span>Source: <code>' + esc(entry.sourcePath) + '</code></span>' : '') +
@@ -431,6 +415,10 @@ function openEntry(entryId, pushToStack) {
   const fieldDefs = ctDef?.fields || [];
   const fieldOrder = fieldDefs.length > 0 ? fieldDefs.map(f => f.id) : Object.keys(entry.fields);
 
+  // Show multi-locale view: one field card per locale for localized fields,
+  // single card for non-localized fields — matches Contentful editor UI
+  const hasMultipleLocales = DATA.locales.length > 1;
+
   for (const fieldId of fieldOrder) {
     if (!entry.fields[fieldId]) continue;
     const fDef = fieldDefs.find(f => f.id === fieldId);
@@ -441,20 +429,39 @@ function openEntry(entryId, pushToStack) {
 
     const fieldWrapper = entry.fields[fieldId];
 
-    // Show value for active locale only
-    const val = fieldWrapper[activeLocale] !== undefined ? fieldWrapper[activeLocale] : fieldWrapper[Object.keys(fieldWrapper)[0]];
-    const displayLocale = fieldWrapper[activeLocale] !== undefined ? activeLocale : Object.keys(fieldWrapper)[0];
+    if (isLocalized && hasMultipleLocales) {
+      // Render one card per locale, like Contentful does
+      for (const loc of DATA.locales) {
+        const val = fieldWrapper[loc];
+        const hasValue = val !== undefined && val !== null;
+        fieldsHtml += '<div class="field-card">';
+        fieldsHtml += '<div class="field-label">';
+        fieldsHtml += '<span>' + esc(fName) + '</span>';
+        if (isRequired) fieldsHtml += '<span class="req">*</span>';
+        fieldsHtml += '<span class="locale-tag locale-indicator">' + esc(loc) + '</span>';
+        fieldsHtml += '<span class="ftype">' + esc(fType) + '</span>';
+        fieldsHtml += '</div>';
+        if (hasValue) {
+          fieldsHtml += renderFieldValue(val, fDef, loc);
+        } else {
+          fieldsHtml += '<div class="field-value empty">Empty</div>';
+        }
+        fieldsHtml += '</div>';
+      }
+    } else {
+      // Non-localized or single-locale: show once
+      const val = fieldWrapper[activeLocale] !== undefined ? fieldWrapper[activeLocale] : fieldWrapper[Object.keys(fieldWrapper)[0]];
 
-    fieldsHtml += '<div class="field-card">';
-    fieldsHtml += '<div class="field-label">';
-    fieldsHtml += '<span>' + esc(fName) + '</span>';
-    if (isRequired) fieldsHtml += '<span class="req">*</span>';
-    if (!isLocalized) fieldsHtml += '<span class="locale-tag">non-localized</span>';
-    else if (displayLocale !== activeLocale) fieldsHtml += '<span class="locale-tag">fallback: ' + esc(displayLocale) + '</span>';
-    fieldsHtml += '<span class="ftype">' + esc(fType) + '</span>';
-    fieldsHtml += '</div>';
-    fieldsHtml += renderFieldValue(val, fDef, activeLocale);
-    fieldsHtml += '</div>';
+      fieldsHtml += '<div class="field-card">';
+      fieldsHtml += '<div class="field-label">';
+      fieldsHtml += '<span>' + esc(fName) + '</span>';
+      if (isRequired) fieldsHtml += '<span class="req">*</span>';
+      if (!isLocalized && hasMultipleLocales) fieldsHtml += '<span class="locale-tag">non-localized</span>';
+      fieldsHtml += '<span class="ftype">' + esc(fType) + '</span>';
+      fieldsHtml += '</div>';
+      fieldsHtml += renderFieldValue(val, fDef, activeLocale);
+      fieldsHtml += '</div>';
+    }
   }
   fieldsHtml += '</div>';
 
@@ -694,11 +701,6 @@ document.getElementById('locale-filter').onchange = function() {
   renderList();
 };
 document.getElementById('search-input').oninput = renderList;
-
-function switchEditorLocale(loc) {
-  selectedLocale = loc;
-  if (selectedId) openEntry(selectedId, false);
-}
 
 renderList();
 

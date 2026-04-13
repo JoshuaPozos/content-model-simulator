@@ -46,7 +46,7 @@ export function simulate(
     options = {},
   } = config;
 
-  const {
+  let {
     baseLocale = 'en',
     locales: explicitLocales,
     name = 'simulation',
@@ -107,6 +107,17 @@ export function simulate(
     }
     if (localeSet.size === 0) localeSet.add(baseLocale);
     report.locales = [...localeSet].sort();
+  }
+
+  // Auto-correct baseLocale when it doesn't match any detected locale
+  // e.g. default 'en' when data has 'en-US'
+  if (!report.locales.includes(report.baseLocale)) {
+    const match = report.locales.find(l => l.startsWith(report.baseLocale + '-'))
+      || report.locales.find(l => l.split('-')[0] === report.baseLocale.split('-')[0]);
+    if (match) {
+      report.baseLocale = match;
+      baseLocale = match;
+    }
   }
 
   // ─── Detect needed content types ───────────────────────────────────

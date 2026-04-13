@@ -28,7 +28,7 @@ export function generateModelGraphHTML(report: SimulationReport, options: GraphH
 
   for (const entry of report.entries) {
     for (const [fieldName, fw] of Object.entries(entry.fields)) {
-      const val = fw?.[report.baseLocale] as any;
+      const val = (fw?.[report.baseLocale] ?? fw?.[Object.keys(fw || {})[0]]) as any;
       const targets: string[] = [];
       if (val?.sys?.linkType === 'Entry') targets.push(val.sys.id);
       if (Array.isArray(val)) {
