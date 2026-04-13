@@ -19,7 +19,8 @@
     "build": "tsc && tsc -p tsconfig.test.json && tsc -p tsconfig.e2e.json",
     "start": "node bin/cms-sim.js",
     "pretest": "npm run build",
-    "test": "node --test 'dist/**/*.test.js' 'dist-e2e/*.test.js'"
+    "test": "node --test 'dist/**/*.test.js' 'dist-e2e/*.test.js'",
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "contentful",

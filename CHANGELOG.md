@@ -2,7 +2,7 @@
 
 All notable changes to `content-model-simulator` are documented here.
 
-## [0.1.0] — Unreleased
+## [0.1.0] — 2026-04-12
 
 ### Added
 - **Core simulation engine**: 10-step pipeline (load → detect → validate → extract → transform → link → nest → convert → validate → report)
