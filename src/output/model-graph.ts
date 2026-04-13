@@ -356,7 +356,7 @@ function render() {
     const path = 'M' + x1 + ',' + y1 + ' C' + (x1 + dx) + ',' + y1 + ' ' + (x2 - dx) + ',' + y2 + ' ' + x2 + ',' + y2;
     svg += '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="1.8" marker-end="' + marker + '" opacity="0.7"/>';
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - 6;
-    svg += '<text x="' + mx + '" y="' + my + '" text-anchor="middle" fill="' + color + '" font-size="9" font-family="system-ui" font-weight="500">' + (rel.fieldName || '') + '</text>';
+    svg += '<text x="' + mx + '" y="' + my + '" text-anchor="middle" fill="' + color + '" font-size="9" font-family="system-ui" font-weight="500">' + esc(rel.fieldName || '') + '</text>';
   }
 
   // Draw CT cards
@@ -374,7 +374,7 @@ function render() {
     const chevX = pos.x + 14, chevY = pos.y + cardHeaderH / 2;
     if (isExpanded) svg += '<polygon points="' + (chevX-3) + ',' + (chevY-3) + ' ' + (chevX+3) + ',' + (chevY-3) + ' ' + chevX + ',' + (chevY+3) + '" fill="#6B7280"/>';
     else svg += '<polygon points="' + (chevX-3) + ',' + (chevY-4) + ' ' + (chevX+3) + ',' + chevY + ' ' + (chevX-3) + ',' + (chevY+4) + '" fill="#6B7280"/>';
-    svg += '<text x="' + (pos.x + 28) + '" y="' + (pos.y + cardHeaderH/2 + 1) + '" dominant-baseline="middle" font-size="12" font-weight="600" fill="#1A1D29" font-family="system-ui">' + ct.name + '</text>';
+    svg += '<text x="' + (pos.x + 28) + '" y="' + (pos.y + cardHeaderH/2 + 1) + '" dominant-baseline="middle" font-size="12" font-weight="600" fill="#1A1D29" font-family="system-ui">' + esc(ct.name) + '</text>';
     const badgeText = ct.entryCount + '';
     const badgeW = badgeText.length * 7 + 14;
     svg += '<rect x="' + (pos.x + cardW - badgeW - 10) + '" y="' + (pos.y + cardHeaderH/2 - 9) + '" width="' + badgeW + '" height="18" rx="9" fill="#EEF2FF"/>';
@@ -385,14 +385,14 @@ function render() {
         const isLink = f.type === 'Link' || (f.type === 'Array' && f.linkType === 'Entry');
         const dotColor = isLink ? '#4F46E5' : (typeColor[f.type] || '#94A3B8');
         svg += '<circle cx="' + (pos.x + 16) + '" cy="' + fy + '" r="3" fill="' + dotColor + '"/>';
-        svg += '<text x="' + (pos.x + 26) + '" y="' + fy + '" dominant-baseline="middle" font-size="10.5" fill="' + (isLink ? '#4F46E5' : '#1A1D29') + '" font-weight="' + (isLink ? '600' : '400') + '" font-family="system-ui">' + f.id + '</text>';
+        svg += '<text x="' + (pos.x + 26) + '" y="' + fy + '" dominant-baseline="middle" font-size="10.5" fill="' + (isLink ? '#4F46E5' : '#1A1D29') + '" font-weight="' + (isLink ? '600' : '400') + '" font-family="system-ui">' + esc(f.id) + '</text>';
         const shortType = f.type === 'Array' ? (f.linkType ? 'Array‹' + f.linkType + '›' : 'Array') : (f.linkType ? f.type + ':' + f.linkType : f.type);
-        svg += '<text x="' + (pos.x + cardW - 10) + '" y="' + fy + '" dominant-baseline="middle" text-anchor="end" font-size="8.5" fill="#9CA3AF" font-family="system-ui">' + shortType + '</text>';
+        svg += '<text x="' + (pos.x + cardW - 10) + '" y="' + fy + '" dominant-baseline="middle" text-anchor="end" font-size="8.5" fill="#9CA3AF" font-family="system-ui">' + esc(shortType) + '</text>';
       });
     }
     const footerY = pos.y + h - cardFooterH;
     svg += '<line x1="' + pos.x + '" y1="' + footerY + '" x2="' + (pos.x + cardW) + '" y2="' + footerY + '" stroke="#EEF0F4" stroke-width="1"/>';
-    svg += '<text x="' + (pos.x + 14) + '" y="' + (footerY + cardFooterH/2 + 1) + '" dominant-baseline="middle" font-size="9" fill="#9CA3AF" font-family="system-ui">' + fields.length + ' fields · ' + ctId + '</text>';
+    svg += '<text x="' + (pos.x + 14) + '" y="' + (footerY + cardFooterH/2 + 1) + '" dominant-baseline="middle" font-size="9" fill="#9CA3AF" font-family="system-ui">' + fields.length + ' fields · ' + esc(ctId) + '</text>';
     svg += '<circle cx="' + (pos.x + cardW) + '" cy="' + (pos.y + cardHeaderH/2) + '" r="4" fill="white" stroke="#DDE0E8" stroke-width="1.5"/>';
     svg += '<circle cx="' + pos.x + '" cy="' + (pos.y + cardHeaderH/2) + '" r="4" fill="white" stroke="#DDE0E8" stroke-width="1.5"/>';
     svg += '</g>';
@@ -462,19 +462,19 @@ function showCtDetail(ctId) {
   const outRels = DATA.ctRelationships.filter(r => r.from === ctId);
   const inRels = DATA.ctRelationships.filter(r => r.to === ctId);
   content.innerHTML =
-    '<h3>' + ct.name + '</h3>' +
+    '<h3>' + esc(ct.name) + '</h3>' +
     '<div class="dp-section"><h4>Identity</h4>' +
-      '<div class="dp-row"><span class="k">id</span><span class="v">' + ct.id + '</span></div>' +
+      '<div class="dp-row"><span class="k">id</span><span class="v">' + esc(ct.id) + '</span></div>' +
       '<div class="dp-row"><span class="k">entries</span><span class="v">' + ct.entryCount + '</span></div>' +
-      '<div class="dp-row"><span class="k">displayField</span><span class="v">' + (ct.displayField || '—') + '</span></div>' +
+      '<div class="dp-row"><span class="k">displayField</span><span class="v">' + esc(ct.displayField || '—') + '</span></div>' +
     '</div>' +
     '<div class="dp-section"><h4>Fields (' + ct.fields.length + ')</h4>' +
-      ct.fields.map(f => '<div class="dp-row"><span class="k">' + f.id + '</span><span class="v">' + f.type + (f.linkType ? ':'+f.linkType : '') + (f.required ? ' ✱' : '') + '</span></div>').join('') +
+      ct.fields.map(f => '<div class="dp-row"><span class="k">' + esc(f.id) + '</span><span class="v">' + esc(f.type + (f.linkType ? ':'+f.linkType : '')) + (f.required ? ' ✱' : '') + '</span></div>').join('') +
     '</div>' +
-    (outRels.length ? '<div class="dp-section"><h4>References Out →</h4>' + outRels.map(r => '<div class="dp-row"><span class="k">' + r.fieldName + '</span><span class="v">→ ' + r.to + '</span></div>').join('') + '</div>' : '') +
-    (inRels.length ? '<div class="dp-section"><h4>← Referenced By</h4>' + inRels.map(r => '<div class="dp-row"><span class="k">' + r.from + '</span><span class="v">.' + r.fieldName + '</span></div>').join('') + '</div>' : '') +
+    (outRels.length ? '<div class="dp-section"><h4>References Out →</h4>' + outRels.map(r => '<div class="dp-row"><span class="k">' + esc(r.fieldName) + '</span><span class="v">→ ' + esc(r.to) + '</span></div>').join('') + '</div>' : '') +
+    (inRels.length ? '<div class="dp-section"><h4>← Referenced By</h4>' + inRels.map(r => '<div class="dp-row"><span class="k">' + esc(r.from) + '</span><span class="v">.' + esc(r.fieldName) + '</span></div>').join('') + '</div>' : '') +
     '<div class="dp-section"><h4>Sample Entries (first 20)</h4>' +
-      entries.slice(0, 20).map(e => '<div class="dp-row"><span class="k" style="font-size:0.65rem">' + e.id.substring(0, 45) + '</span><span class="v">' + (e.locales || []).join(', ') + '</span></div>').join('') +
+      entries.slice(0, 20).map(e => '<div class="dp-row"><span class="k" style="font-size:0.65rem">' + esc(e.id.substring(0, 45)) + '</span><span class="v">' + esc((e.locales || []).join(', ')) + '</span></div>').join('') +
       (entries.length > 20 ? '<div style="color:#6B7280;font-size:0.7rem;padding:4px 0">+' + (entries.length - 20) + ' more</div>' : '') +
     '</div>';
   panel.classList.add('open');

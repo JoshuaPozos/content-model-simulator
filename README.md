@@ -4,7 +4,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
-![Tests](https://img.shields.io/badge/tests-188%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-358%20passing-brightgreen)
 
 Preview your Contentful content model locally — **zero dependencies, simulation runs 100% offline**.
 
@@ -24,8 +24,17 @@ Works for **designing content models from scratch**, **working with your existin
 - **Mock Data Generator** — auto-generates realistic sample entries from your schemas with field-type-aware values
 - **Contentful Validation** — catches the same errors Contentful would reject: missing required fields, unknown fields, unresolved links
 - **Contentful Schema Format** — uses the exact Contentful content type definition format (Symbol, Text, RichText, Link, Array, etc.)
-- **Universal Reader** — reads NDJSON, JSON arrays, or directories of JSON files
-- **CMS Migration Guides** — step-by-step stubs for WordPress, Sanity, DatoCMS, Strapi, Contentstack, Prismic, Hygraph, Bloomreach
+- **Universal Reader** — reads NDJSON, JSON arrays, directories of JSON files, and WordPress XML (WXR) exports
+- **WordPress WXR Reader** — zero-dependency parser for WordPress eXtended RSS exports; auto-detects `.xml` files, extracts posts, pages, attachments, authors, categories, tags
+- **Rich Text support** — zero-dependency HTML → Contentful Rich Text JSON converter; auto-converts HTML strings in RichText fields during simulation
+- **Watch mode** — `--watch` re-runs simulation automatically when schemas or data change, with browser auto-reload
+- **Schema diff** — `cms-sim diff` compares two schema directories or simulation outputs side-by-side
+- **Validate subcommand** — `cms-sim validate` for CI/CD pipelines with `--json` output and exit code 1 on errors
+- **Scaffold subcommand** — `cms-sim scaffold` auto-generates Contentful schemas and transforms from a WordPress XML export
+- **Init subcommand** — `cms-sim init` scaffolds a new content model project with example schemas
+- **Plugin system** — `--plugins` auto-discovers schemas, transforms, and setup files
+- **Locale inheritance** — non-localized fields automatically shared from base locale to other locales
+- **Custom HTML templates** — inject custom CSS and `<head>` content into generated HTML
 - **Extensible** — register custom transformers, asset detectors, and nested object extractors
 
 ## Quick Start
@@ -99,6 +108,7 @@ DATA SOURCE (optional):
 
 OPTIONS:
   --transforms=<dir>     Custom transformer modules directory
+  --plugins=<dir>        Plugin directory (auto-discovers schemas/, transforms/, setup files)
   --config=<file>        JSON config file (cms-sim.config.json)
   --output=<dir>         Output directory (default: ./output/<name>_<timestamp>)
   --name=<string>        Project name (default: derived from input or schemas dir)
@@ -106,9 +116,13 @@ OPTIONS:
   --locales=<list>       Comma-separated locale codes (default: base locale only)
   --locale-map=<file>    JSON file mapping source → target locale codes
   --entries-per-type=<n> Mock entries per content type (default: 3, only without --input)
-  --format=<fmt>         Input format: ndjson, json, dir (default: auto-detect)
+  --content-type=<id>    Filter simulation to a specific content type
+  --format=<fmt>         Input format: ndjson, json-array, json-dir, wxr, auto (default: auto)
   --json                 JSON output only (skip HTML generation)
   --open                 Auto-open HTML report in browser
+  --watch, -w            Re-run simulation on file changes (auto-reload in browser)
+  --template-css=<file>  Custom CSS file to inject into HTML output
+  --template-head=<file> Custom HTML to inject into <head>
   --verbose, -v          Verbose logging
   --help, -h             Show help
 ```
@@ -127,8 +141,56 @@ OPTIONS:
   --environment=<env>    Environment (default: master)
   --output=<dir>         Output directory (default: ./contentful-export)
   --include-entries      Also download published entries
+  --include-assets       Download asset files (images, documents, etc.)
   --max-entries=<n>      Max entries to download (default: 1000)
+  --content-type=<id>    Filter entries by content type
+  --preview              Use Content Preview API (drafts) instead of CDA
   --verbose, -v          Verbose logging
+```
+
+### Validate (CI/CD)
+
+```
+cms-sim validate --schemas=<dir> [options]
+
+Runs the simulation pipeline and outputs only errors/warnings (no HTML).
+Exits with code 1 if validation errors are found.
+
+OPTIONS:
+  --input=<path>         Source data (optional — mock data if omitted)
+  --transforms=<dir>     Custom transformer modules
+  --plugins=<dir>        Plugin directory
+  --format=<fmt>         Input format (default: auto)
+  --json                 Machine-readable JSON output
+  --verbose, -v          Verbose logging
+```
+
+### Diff
+
+```
+cms-sim diff --old=<dir> --new=<dir>
+
+Compare two schema directories or simulation output directories.
+Auto-detects simulation outputs (via manifest.json) for report-level diff.
+
+OPTIONS:
+  --json                 Machine-readable JSON output
+```
+
+### Init
+
+```
+cms-sim init [<name>]
+
+Scaffold a new content model project with example schemas and a README.
+```
+
+### Scaffold
+
+```
+cms-sim scaffold --input=<file.xml> [--output=<dir>]
+
+Auto-generate Contentful schemas and transforms from a WordPress XML export.
 ```
 
 > **Security:** `cms-sim pull` only reads from Contentful — it never writes. Use a Content Delivery API (CDA) token, which is read-only. Your token is never stored or logged.
@@ -359,14 +421,8 @@ Step-by-step guides for **previewing** migrations from popular CMSs. Each guide 
 
 | Source CMS | Guide |
 |------------|-------|
-| WordPress | [examples/migration-guides/wordpress/](examples/migration-guides/wordpress/) |
-| Sanity | [examples/migration-guides/sanity/](examples/migration-guides/sanity/) |
-| DatoCMS | [examples/migration-guides/datocms/](examples/migration-guides/datocms/) |
-| Strapi | [examples/migration-guides/strapi/](examples/migration-guides/strapi/) |
-| Contentstack | [examples/migration-guides/contentstack/](examples/migration-guides/contentstack/) |
-| Prismic | [examples/migration-guides/prismic/](examples/migration-guides/prismic/) |
-| Hygraph (GraphCMS) | [examples/migration-guides/hygraph/](examples/migration-guides/hygraph/) |
-| Bloomreach | [examples/migration-guides/bloomreach/](examples/migration-guides/bloomreach/) |
+| WordPress | [examples/wordpress/](examples/wordpress/) — full end-to-end example with real Gutenberg data |
+| Sanity | [examples/migration-guides/sanity/](examples/migration-guides/sanity/) — coming soon |
 
 ## What This Tool Does NOT Do
 

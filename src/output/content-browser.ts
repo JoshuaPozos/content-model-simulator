@@ -96,11 +96,11 @@ export function generateContentBrowserHTML(report: SimulationReport, options: Br
   };
 
   const ctOptions = Object.keys(ctDefs).sort().map(ct =>
-    `<option value="${ct}">${escapeHtml(ctDefs[ct].name || ct)}</option>`
+    `<option value="${escapeHtml(ct)}">${escapeHtml(ctDefs[ct].name || ct)}</option>`
   ).join('\n          ');
 
   const localeOptions = report.locales.map(l =>
-    `<option value="${l}">${escapeHtml(l)}</option>`
+    `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`
   ).join('\n          ');
 
   return `<!DOCTYPE html>

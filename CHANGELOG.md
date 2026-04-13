@@ -25,7 +25,7 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry validation**: field-level checks against content type definitions
 - **`writeReport()`**: write simulation report to JSON
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
-- **Test suite**: 326 tests (unit + e2e), zero `as any` casts
+- **Test suite**: 358 tests (unit + e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
 - **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property
@@ -46,6 +46,10 @@ All notable changes to `content-model-simulator` are documented here.
 - **Rich Text support** (`htmlToRichText`): zero-dependency HTML → Contentful Rich Text JSON converter. Auto-converts HTML strings in RichText fields during simulation. Supports headings, lists, marks, links, images, tables, blockquotes. Exported as public API with `looksLikeHTML()` and `isRichTextDocument()` helpers.
 - **WordPress WXR reader** (`readWXR`): zero-dependency parser for WordPress eXtended RSS (WXR 1.2) export files. Auto-detected from `.xml` extension or `<?xml`/`<rss` content. Extracts posts, pages, attachments, authors, categories, and tags as `Document[]`. Strips Gutenberg block comments (`<!-- wp:* -->`) from HTML content. Exports `readWXR()`, `parseWXR()`, `parseWXRString()`, `stripGutenbergComments()` plus types `WXRReadOptions`, `WXRSite`, `WXRResult`.
 - **WordPress example** (`examples/wordpress/`): end-to-end migration example using real Gutenberg test data XML with schemas (blogPost, author, category, tag), transforms, and programmatic runner.
+- **`cms-sim scaffold`**: auto-generate Contentful schemas and transforms from a WordPress XML export. Analyzes post types, fields, taxonomies, and relationships to produce editable `.js` schema files and a `TransformerRegistry`.
+- **Multi-locale entry model**: entries now contain all locales in a single object (`Entry.locales: string[]`) matching the real Contentful model, instead of duplicating entries per locale. Merge pipeline groups intermediate entries by content type + source ID.
+- **Content Browser per-locale field display**: localized fields show one card per locale with a locale indicator badge (e.g., "English (United States)"), matching the Contentful dashboard experience.
+- **Base locale auto-correction**: when `--base-locale=en` is set but data uses `en-US`, the simulator auto-detects and corrects to the matching locale code.
 
 ### Fixed
 - **CLI format auto-detection**: default `--format` changed from `'ndjson'` to `'auto'`, enabling proper detection of XML, JSON array, and JSON directory inputs without explicit `--format` flag.
@@ -57,8 +61,11 @@ All notable changes to `content-model-simulator` are documented here.
 - Missing `src/output/` files and Content Model Graph 404 link
 - Resolve relationships in model graph using source IDs
 - Remove hardcoded "Draft" status from content browser
-- `renderLinkedEntry` escape corruption (`\\'` → `\\\\'`)
-- README examples: `schemas.all()` → `schemas`, missing asset destructuring, misleading `writeReport()` usage
+- `renderLinkedEntry` escape corruption (`\\'` → `\\\\'`)- `baseLocale` auto-correction scope bug: `const` → `let` to propagate corrected locale to downstream pipeline
+- Model Graph relationship detection: fallback to first available locale key when `baseLocale` doesn't match field wrapper keys
+- Entry IDs now locale-independent in both simulator and `TransformerRegistry` (enables proper multi-locale merge)
+- XSS: escape all user data values in Model Graph SVG render and detail panel innerHTML
+- XSS: escape `value` attributes in Content Browser `<option>` elements- README examples: `schemas.all()` → `schemas`, missing asset destructuring, misleading `writeReport()` usage
 - `--max-entries` and `--content-type` warn when used without `--include-entries`
 
 ### Infrastructure
