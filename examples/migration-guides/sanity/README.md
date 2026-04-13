@@ -1,27 +1,54 @@
 # Sanity → Contentful Migration Guide
 
-> **Status:** Stub — contributions welcome.
+> **Full guide with working example:** See [`examples/sanity/`](../../sanity/)
 
-## Overview
+The full Sanity guide includes:
+- Working sample data (NDJSON) covering all common Sanity field types
+- Schemas and transforms with detailed inline comments
+- Programmatic `run.js` example
+- Step-by-step walkthrough from export to import
+- Transform patterns for every Sanity field type (slug, localeString, Portable Text, refs, images, nested objects)
+- Common mistakes and how to avoid them (with symptoms)
+- Warning reference table
 
-Sanity stores content as JSON documents with a flexible schema system. Documents have `_type`, `_id`, and use references (`_ref`) for relationships. Portable Text is Sanity's rich text format.
+---
 
-## 1. Export
+## Quick Reference
 
-Use the [Sanity CLI](https://www.sanity.io/docs/cli) or GROQ queries:
+### How the Sanity Reader Normalizes Fields
 
-```bash
-# Full dataset export (NDJSON)
-sanity dataset export production export.tar.gz
-tar -xzf export.tar.gz  # produces data.ndjson
+| Sanity structure | After reader normalization |
+|---|---|
+| `{ _type: "slug", current: "my-post" }` | `"my-post"` (plain string) |
+| Portable Text block arrays | HTML string |
+| `{ _type: "localeString", en: "Hi", es: "Hola" }` | `{ en: "Hi", es: "Hola" }` (no `_type`) |
+| `{ _ref: "doc-123", _type: "reference" }` | Kept as-is (you map it) |
+| `{ _type: "image", asset: { _ref: "..." } }` | Kept as-is (you map it) |
+| System fields (`_id`, `_type`, `_rev`, etc.) | Stripped from data |
+| `drafts.*` documents | Excluded by default |
+| `system.*` types | Excluded by default |
+| `sanity.imageAsset` documents | Excluded from docs, collected in `assets` |
 
-# GROQ — specific types
-sanity documents query '*[_type == "post"]' --dataset production > posts.json
+### Transform Return Shape
+
+```js
+// ✅ CORRECT — every transform must return this shape
+export function register(registry) {
+  registry.register('post', (doc, locale) => {
+    const d = doc.data || {};
+    return {
+      fields: {
+        title: { [locale]: d.title },
+        body:  { [locale]: d.body },
+      },
+    };
+  }, 'blogPost');
+
+  registry.skip(['system.group', 'system.retention']);
+}
 ```
 
-Sanity's NDJSON export is close to what `content-model-simulator` expects. You may only need a light transform.
-
-## 2. Schema Mapping
+### Schema Mapping
 
 | Sanity | Contentful |
 |--------|------------|
@@ -39,35 +66,13 @@ Sanity's NDJSON export is close to what `content-model-simulator` expects. You m
 | `geopoint` | `Location` |
 | `object` | `Object` or separate content type |
 
-## 3. Transform
-
-```js
-// transforms/sanity.js
-export function register(registry) {
-  registry.add('post', (doc, schema, helpers) => {
-    const d = doc.data || doc.fields || {};
-    return {
-      title: d.title,
-      slug: d.slug?.current || d.slug,
-      body: d.body, // TODO: Convert Portable Text → Contentful Rich Text
-      publishedAt: d.publishedAt || d._createdAt,
-      author: d.author?._ref ? helpers.createLink(d.author._ref, 'Entry') : undefined,
-      // TODO: Map image assets, categories
-    };
-  });
-}
-```
-
-## 4. Simulate
+### Simulate
 
 ```bash
-cms-sim --schemas=schemas/ --input=data.ndjson --transforms=transforms/ --open
+npx cms-sim \
+  --schemas=schemas/ \
+  --input=data/data.ndjson \
+  --transforms=transforms/ \
+  --locales=en \
+  --open
 ```
-
-## 5. Edge Cases
-
-- **Portable Text → Rich Text** — Requires a dedicated converter (block → node mapping)
-- **Image hotspot/crop** — Contentful doesn't have native hotspot; store as metadata
-- **References (_ref)** — Map Sanity `_id` to Contentful entry IDs
-- **Drafts** — Sanity prefixes draft IDs with `drafts.`; filter or handle separately
-- **i18n** — If using `@sanity/document-internationalization`, map `__i18n_lang` to Contentful locales

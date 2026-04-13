@@ -6,8 +6,8 @@ Step-by-step guides for migrating content from popular CMSs to Contentful using 
 
 | Source CMS | Guide | Status |
 |------------|-------|--------|
-| WordPress | [`examples/wordpress/`](../wordpress/) | **Working** — full end-to-end example with real Gutenberg XML |
-| Sanity | [sanity/](./sanity/) | Stub — next up |
+| WordPress | [wordpress/](./wordpress/) → [`examples/wordpress/`](../wordpress/) | **Working** — full end-to-end example with real Gutenberg XML |
+| Sanity | [sanity/](./sanity/) → [`examples/sanity/`](../sanity/) | **Working** — full end-to-end example with NDJSON data |
 
 ## How to use these guides
 
