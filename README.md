@@ -11,7 +11,7 @@
 Stop iterating blind. Simulate content types, entries, references, and validation errors entirely offline — catch mistakes before they hit production, not after.
 
 <p align="center">
-  <img src="docs/assets/content-browser-01.png" alt="Content Browser — browse entries, inspect fields, follow references" width="800" />
+  <img src="docs/assets/content-browser-02.png" alt="Content Browser — browse entries, inspect fields, follow references" width="800" />
 </p>
 
 ## Why this exists
@@ -67,7 +67,7 @@ Interactive SVG diagram of your content types and their relationships. Zoom, pan
 </tr>
 <tr>
 <td>
-<img src="docs/assets/content-browser-02.png" alt="Content Browser — references view" width="100%" />
+<img src="docs/assets/content-browser-01.png" alt="Content Browser — field editor with entries list" width="100%" />
 </td>
 <td>
 <img src="docs/assets/visual-report-01.png" alt="Content Model Graph — interactive SVG" width="100%" />
