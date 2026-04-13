@@ -94,3 +94,7 @@ export { readWXR, parseWXR, parseWXRString, stripGutenbergComments } from './wor
 export type { WXRReadOptions, WXRSite, WXRResult } from './wordpress/wxr-reader.js';
 export { analyzeWXR, generateScaffold, scaffoldFromWXR } from './wordpress/wxr-scaffold.js';
 export type { ScaffoldAnalysis, AnalyzedContentType, AnalyzedField, ScaffoldOptions, ScaffoldOutput } from './wordpress/wxr-scaffold.js';
+
+// ── Sanity ───────────────────────────────────────────────────────
+export { readSanity, parseSanity, parseSanityString, portableTextToHTML, isSanityNDJSON } from './sanity/sanity-reader.js';
+export type { SanityReadOptions, SanityImageAsset, SanityResult } from './sanity/sanity-reader.js';

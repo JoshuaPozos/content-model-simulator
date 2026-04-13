@@ -286,7 +286,7 @@ export interface AppConfig {
 // ── Reader Types ─────────────────────────────────────────────────
 
 export interface ReadOptions {
-  format?: 'ndjson' | 'json-array' | 'json-dir' | 'wxr' | 'auto';
+  format?: 'ndjson' | 'json-array' | 'json-dir' | 'wxr' | 'sanity' | 'auto';
   transform?: (doc: unknown) => Document;
 }
 

@@ -255,16 +255,20 @@ export function simulate(
       if (transformedEntry.fields) {
         for (const [fieldName, fieldValue] of Object.entries(transformedEntry.fields)) {
           if (fieldValue && typeof fieldValue === 'object' && !Array.isArray(fieldValue)) {
-            // Already locale-wrapped
-            const hasLocaleKey = Object.keys(fieldValue).some(k =>
+            // Already locale-wrapped: check if keys match known locales
+            const fieldObj = fieldValue as Record<string, unknown>;
+            const hasLocaleKey = Object.keys(fieldObj).some(k =>
               k === baseLocale || report.locales.includes(k)
             );
             if (hasLocaleKey) {
-              // Preserve the actual locale key from the wrapper
-              const localeKey = Object.keys(fieldValue).find(k =>
-                k === baseLocale || report.locales.includes(k)
-              )!;
-              fields[fieldName] = { [localeKey]: Object.values(fieldValue)[0] };
+              // Preserve all locale keys from the wrapper
+              const localeWrapper: Record<string, unknown> = {};
+              for (const [k, v] of Object.entries(fieldObj)) {
+                if (k === baseLocale || report.locales.includes(k)) {
+                  localeWrapper[k] = v;
+                }
+              }
+              fields[fieldName] = localeWrapper;
             } else {
               fields[fieldName] = { [locale]: fieldValue };
             }
