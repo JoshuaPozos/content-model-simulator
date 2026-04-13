@@ -69,6 +69,6 @@ All notable changes to `content-model-simulator` are documented here.
 - `--max-entries` and `--content-type` warn when used without `--include-entries`
 
 ### Infrastructure
-- Zero runtime dependencies, Node.js >= 18, ESM (`"type": "module"`)
+- Zero runtime dependencies, Node.js >= 22, ESM (`"type": "module"`)
 - TypeScript 6.0.2, `@types/node` 25.6.0
 - 3 example projects (from-scratch, with-data, wordpress)

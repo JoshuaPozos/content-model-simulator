@@ -1,6 +1,6 @@
 # content-model-simulator
 
-![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
+![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
@@ -16,7 +16,7 @@ Works for **designing content models from scratch**, **working with your existin
 
 ## Features
 
-- **Zero dependencies** — pure Node.js (≥ 18), nothing to install beyond the package
+- **Zero dependencies** — pure Node.js (≥ 22), nothing to install beyond the package
 - **Three workflows** — design from scratch, pull your current Contentful model, or preview a CMS migration
 - **Pull from Contentful** — download your existing content types and entries with `cms-sim pull` (read-only, uses CDA token)
 - **Interactive Content Browser** — replica of the Contentful UI to browse entries, filter by type/locale, inspect fields, follow references
