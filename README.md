@@ -207,6 +207,7 @@ Compare two schema directories or simulation outputs.
 
 ```
 cms-sim init [<name>]              # Scaffold a new project with example schemas
+cms-sim init .                     # Scaffold in current directory
 cms-sim scaffold --input=<file.xml> # Auto-generate schemas from WordPress XML
 ```
 
@@ -247,7 +248,7 @@ Full API exports: `simulate`, `readDocuments`, `readDocumentsStream`, `SchemaReg
 ## Content Type Schema Format
 
 ```js
-// schemas/blogPost.js
+// schemas/blogPost.mjs
 export default {
   id: 'blogPost',
   name: 'Blog Post',

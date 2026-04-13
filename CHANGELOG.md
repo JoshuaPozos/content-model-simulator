@@ -2,6 +2,13 @@
 
 All notable changes to `content-model-simulator` are documented here.
 
+## [0.1.1] — 2026-04-13
+
+### Fixed
+- **`cms-sim init .`**: allow scaffolding in the current directory instead of erroring with "Directory already exists". Only blocks if `schemas/` already exists inside the target. Output adapts: shows `.` as name and omits the `cd` step.
+- **Init generates `.mjs` schemas**: `cms-sim init` now writes `blogPost.mjs` and `author.mjs` instead of `.js`. Node.js treats `.mjs` as ESM regardless of `package.json`, eliminating the `MODULE_TYPELESS_PACKAGE_JSON` warning users hit when their project has no `"type": "module"`.
+- **Init help text**: added `cms-sim init .` example to `--help` output.
+
 ## [0.1.0] — 2026-04-12
 
 ### Added
@@ -25,7 +32,7 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry validation**: field-level checks against content type definitions
 - **`writeReport()`**: write simulation report to JSON
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
-- **Test suite**: 358 tests (unit + e2e), zero `as any` casts
+- **Test suite**: 396 tests (unit + e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
 - **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property
