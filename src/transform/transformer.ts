@@ -21,14 +21,14 @@ export function transformGeneric(
   const entry: TransformedEntry = {
     _metadata: {
       contentType,
-      entryId: generateEntryId(contentType, `${doc.path || doc.id || contentType}-${resolvedLocale}`),
+      entryId: generateEntryId(contentType, `${doc.path || doc.id || contentType}`),
       sourceId: doc.id,
       sourcePath: doc.path || null,
       sourceType: contentType,
     },
     fields: {
       internalName: {
-        [resolvedLocale]: buildInternalName(doc, resolvedLocale)
+        [resolvedLocale]: buildInternalName(doc)
       }
     }
   };
@@ -43,10 +43,10 @@ export function transformGeneric(
   return entry;
 }
 
-function buildInternalName(doc: Document, locale: string): string {
+function buildInternalName(doc: Document): string {
   const parts = doc.path?.split('/').filter(Boolean) || [];
   const component = parts[parts.length - 1] || doc.name || doc.contentType;
-  return `${doc.contentType}-${component}-${locale}`.toLowerCase().substring(0, 200);
+  return `${doc.contentType}-${component}`.toLowerCase().substring(0, 200);
 }
 
 function transformFieldValue(value: unknown, fieldName: string, isImageObject?: (obj: unknown) => boolean): unknown {

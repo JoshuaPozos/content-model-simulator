@@ -153,9 +153,9 @@ describe('CLI: from-scratch workflow (mock data)', () => {
     ]);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(outDir, 'manifest.json'), 'utf-8'));
-    assert.ok(manifest.stats.totalLocales >= 1);
-    // 2 CTs * 2 entries * 3 locales = 12 entries
-    assert.ok(manifest.stats.totalEntries >= 12);
+    assert.ok(manifest.stats.totalLocales >= 3);
+    // 2 CTs * 2 entries = 4 entries (locales merged into each entry)
+    assert.ok(manifest.stats.totalEntries >= 4);
   });
 
   it('supports --json (no HTML)', async () => {
