@@ -1,6 +1,6 @@
 {
   "name": "content-model-simulator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-only simulator for Contentful content models. Preview entries, validate schemas, and browse content offline — never connects to Contentful.",
   "type": "module",
   "main": "dist/index.js",

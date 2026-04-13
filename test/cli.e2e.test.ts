@@ -496,8 +496,8 @@ describe('CLI: init subcommand', () => {
     initDir = path.resolve(name);
     const { stdout } = await cli(['init', name]);
     assert.ok(stdout.includes('Project created'));
-    assert.ok(fs.existsSync(path.join(initDir, 'schemas', 'blogPost.js')));
-    assert.ok(fs.existsSync(path.join(initDir, 'schemas', 'author.js')));
+    assert.ok(fs.existsSync(path.join(initDir, 'schemas', 'blogPost.mjs')));
+    assert.ok(fs.existsSync(path.join(initDir, 'schemas', 'author.mjs')));
     assert.ok(fs.existsSync(path.join(initDir, 'README.md')));
   });
 

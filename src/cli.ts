@@ -1246,11 +1246,14 @@ ${c.cyan}EXAMPLES:${c.reset}
   ${c.dim}# Create with custom name${c.reset}
   cms-sim init my-blog
 
+  ${c.dim}# Scaffold in current directory${c.reset}
+  cms-sim init .
+
 ${c.cyan}WHAT IT CREATES:${c.reset}
   <name>/
   ├── schemas/
-  │   ├── blogPost.js       ${c.dim}Example content type${c.reset}
-  │   └── author.js         ${c.dim}Example content type${c.reset}
+  │   ├── blogPost.mjs      ${c.dim}Example content type${c.reset}
+  │   └── author.mjs        ${c.dim}Example content type${c.reset}
   └── README.md             ${c.dim}Quick-start guide${c.reset}
 `);
     process.exit(0);
@@ -1259,10 +1262,17 @@ ${c.cyan}WHAT IT CREATES:${c.reset}
   const projectName = args.name || 'my-content-model';
   const safeName = projectName.replace(/[^a-zA-Z0-9_.-]/g, '-');
   const projectDir = resolve(safeName);
+  const isCurrentDir = safeName === '.';
 
-  if (existsSync(projectDir)) {
+  if (!isCurrentDir && existsSync(projectDir)) {
     console.error(`${c.red}Error: Directory already exists: ${safeName}/${c.reset}`);
     console.error(`${c.dim}Choose a different name or remove the existing directory.${c.reset}`);
+    process.exit(1);
+  }
+
+  if (isCurrentDir && existsSync(join(projectDir, 'schemas'))) {
+    console.error(`${c.red}Error: schemas/ directory already exists in current directory.${c.reset}`);
+    console.error(`${c.dim}Remove it first or use a different directory.${c.reset}`);
     process.exit(1);
   }
 
@@ -1333,7 +1343,7 @@ npx cms-sim validate --schemas=schemas/
 
 ## Adding Content Types
 
-Create a new \`.js\` file in \`schemas/\` with this structure:
+Create a new \`.mjs\` file in \`schemas/\` with this structure:
 
 \`\`\`js
 export default {
@@ -1371,21 +1381,23 @@ export default {
 - Use \`cms-sim diff --old=schemas-v1/ --new=schemas-v2/\` to compare schema changes
 `;
 
-  writeFileSync(join(schemasDir, 'blogPost.js'), blogPostSchema);
-  writeFileSync(join(schemasDir, 'author.js'), authorSchema);
+  writeFileSync(join(schemasDir, 'blogPost.mjs'), blogPostSchema);
+  writeFileSync(join(schemasDir, 'author.mjs'), authorSchema);
   writeFileSync(join(projectDir, 'README.md'), readme);
 
-  console.log(`
-${c.green}${c.bold}✓ Project created: ${safeName}/${c.reset}
+  const displayName = isCurrentDir ? '.' : safeName;
 
-  ${c.dim}${safeName}/${c.reset}
+  console.log(`
+${c.green}${c.bold}✓ Project created: ${displayName}/${c.reset}
+
+  ${c.dim}${displayName}/${c.reset}
   ├── schemas/
-  │   ├── blogPost.js
-  │   └── author.js
+  │   ├── blogPost.mjs
+  │   └── author.mjs
   └── README.md
 
-${c.cyan}Next steps:${c.reset}
-  cd ${safeName}
+${c.cyan}Next steps:${c.reset}${isCurrentDir ? '' : `
+  cd ${safeName}`}
   npx cms-sim --schemas=schemas/ --open
 `);
 }
