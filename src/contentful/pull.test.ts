@@ -348,7 +348,7 @@ describe('pull', () => {
       usePreview: true,
     });
 
-    assert.ok(urls.every(u => u.startsWith('https://preview.contentful.com')),
+    assert.ok(urls.every(u => new URL(u).hostname === 'preview.contentful.com'),
       `Expected all URLs to use preview API, got: ${urls[0]}`);
   });
 
@@ -372,7 +372,7 @@ describe('pull', () => {
       outputDir: tmpDir,
     });
 
-    assert.ok(urls.every(u => u.startsWith('https://cdn.contentful.com')),
+    assert.ok(urls.every(u => new URL(u).hostname === 'cdn.contentful.com'),
       `Expected all URLs to use CDA, got: ${urls[0]}`);
   });
 
@@ -400,12 +400,12 @@ describe('pull', () => {
 
     // Locales should use CDA with CDA token
     const localeCall = urlsAndHeaders.find(c => c.url.includes('/locales'));
-    assert.ok(localeCall?.url.startsWith('https://cdn.contentful.com'), 'Locales should use CDA');
+    assert.equal(new URL(localeCall!.url).hostname, 'cdn.contentful.com', 'Locales should use CDA');
     assert.equal(localeCall?.auth, 'Bearer cda-token');
 
     // Content types should use CMA with management token
     const typesCall = urlsAndHeaders.find(c => c.url.includes('/content_types'));
-    assert.ok(typesCall?.url.startsWith('https://api.contentful.com'), 'Content types should use CMA');
+    assert.equal(new URL(typesCall!.url).hostname, 'api.contentful.com', 'Content types should use CMA');
     assert.equal(typesCall?.auth, 'Bearer cma-token');
   });
 

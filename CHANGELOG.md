@@ -2,6 +2,14 @@
 
 All notable changes to `content-model-simulator` are documented here.
 
+## [0.2.1] — 2026-04-14
+
+### Added
+- **`--management-token` for `cms-sim pull`**: fetches content type schemas via the Contentful Management API (CMA) so that **all field validations** are included — `in` (allowed values), `regexp`, `size`, `range`, `unique`, and `linkContentType`. Without this flag, `pull` uses the Content Delivery API (CDA), which may omit editor-only validations. Accepts `CONTENTFUL_MANAGEMENT_TOKEN` env var and `managementToken` in config files.
+
+### Fixed
+- **Missing field validations on pull** — `cms-sim pull` previously used only the CDA, which strips some validation rules from content type responses. Schemas pulled without `--management-token` now display a tip suggesting its use.
+
 ## [0.2.0] — 2026-04-14
 
 ### Added

@@ -87,7 +87,7 @@ Interactive SVG diagram of your content types and their relationships. Zoom, pan
 |---|---|
 | **Offline simulation** | 10-step pipeline: load → validate → transform → link → resolve → convert → merge → validate → stats → report. Zero network calls. |
 | **Contentful validation** | Catches missing required fields, unknown fields, unresolved links, field type mismatches — the same errors Contentful would reject. |
-| **Pull from Contentful** | `cms-sim pull` downloads your existing content model and entries (read-only CDA token). Modify locally, simulate, then apply when ready. |
+| **Pull from Contentful** | `cms-sim pull` downloads your existing content model and entries (read-only CDA token). Add `--management-token` to include all field validations. Modify locally, simulate, then apply when ready. |
 | **Mock data generator** | No data? No problem. Auto-generates realistic entries from your schemas with field-type-aware values and cross-references. |
 | **CMS migration preview** | Feed WordPress XML, Sanity NDJSON, or generic JSON exports alongside your Contentful schemas. See exactly how the migrated content will look. |
 | **CI/CD validation** | `cms-sim validate --json` for pipelines. Exit code 1 on errors. |
@@ -107,6 +107,10 @@ npx cms-sim --schemas=schemas/ --locales=en,es,fr --entries-per-type=10 --open
 # Download your current model (read-only)
 npx cms-sim pull --space-id=YOUR_SPACE --access-token=YOUR_CDA_TOKEN --output=my-project/
 
+# ⭐ Include ALL field validations (in, regexp, size, range, unique)
+npx cms-sim pull --space-id=YOUR_SPACE --access-token=YOUR_CDA_TOKEN \
+  --management-token=YOUR_CMA_TOKEN --output=my-project/
+
 # Preview locally, modify schemas, re-run
 npx cms-sim --schemas=my-project/schemas/ --open
 
@@ -114,6 +118,8 @@ npx cms-sim --schemas=my-project/schemas/ --open
 npx cms-sim pull --space-id=abc123 --access-token=TOKEN --include-entries --output=my-project/
 npx cms-sim --schemas=my-project/schemas/ --input=my-project/data/entries.ndjson --open
 ```
+
+> **Why `--management-token`?** The Contentful CDA may omit editor-level validations (`in`, `regexp`, `size`, `range`, `unique`) from content type responses. Adding a CMA token ensures your pulled schemas include every validation rule, so the simulator can catch the same errors Contentful would reject.
 
 ### 3. Preview a CMS migration
 
@@ -132,7 +138,7 @@ npx cms-sim scaffold --input=data/export.xml --output=my-project/
 
 - **Does NOT upload, create, or modify anything** in your Contentful space
 - **Does NOT run migrations** — that's `contentful-migration` / `contentful-import`
-- **Does NOT make network calls** during simulation — `cms-sim pull` is the only command that reads from Contentful (read-only CDA token)
+- **Does NOT make network calls** during simulation — `cms-sim pull` is the only command that reads from Contentful (read-only CDA token, optional CMA token for full validations)
 
 > **This is a simulation tool, not a migration tool.** Once your simulation looks correct, you use Contentful's own tools to perform the actual migration.
 
@@ -178,6 +184,9 @@ OPTIONS:
 ```
 cms-sim pull --space-id=<id> --access-token=<token> [options]
 
+  --management-token=<tok>  CMA token — includes ALL field validations
+                            (in, regexp, size, range, unique)
+                            Or set CONTENTFUL_MANAGEMENT_TOKEN env var
   --environment=<env>    Environment (default: master)
   --output=<dir>         Output directory (default: ./contentful-export)
   --include-entries      Download published entries
@@ -211,7 +220,7 @@ cms-sim init .                     # Scaffold in current directory
 cms-sim scaffold --input=<file.xml> # Auto-generate schemas from WordPress XML
 ```
 
-> **Security:** `cms-sim pull` only reads from Contentful — never writes. Schema and transform files are loaded via dynamic `import()`. Only point `--schemas` / `--transforms` at directories you trust.
+> **Security:** `cms-sim pull` only reads from Contentful — never writes. Schema and transform files are loaded via dynamic `import()`. Only point `--schemas` / `--transforms` at directories you trust. Tokens are never stored or logged.
 
 ## Programmatic API
 
