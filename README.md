@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/content-model-simulator)](https://www.npmjs.com/package/content-model-simulator)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
-![Tests](https://img.shields.io/badge/tests-396%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-362%20passing-brightgreen)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 

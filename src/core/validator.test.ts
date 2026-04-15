@@ -136,6 +136,116 @@ describe('validateEntry', () => {
     const { errors } = validateEntry(entry, emptyDef, 'en');
     assert.equal(errors.length, 0);
   });
+
+  it('warns VALIDATION_IN when value is not in allowed list', () => {
+    const def: ContentTypeDefinition = {
+      id: 'project', name: 'Project', fields: [
+        { id: 'status', name: 'Status', type: 'Symbol', validations: [{ in: ['active', 'completed', 'archived'] }] },
+      ],
+    };
+    const entry = { id: 'e1', contentType: 'project', fields: { status: { en: 'draft' } } };
+    const { warnings } = validateEntry(entry, def, 'en');
+    const inWarnings = warnings.filter(w => w.type === 'VALIDATION_IN');
+    assert.equal(inWarnings.length, 1);
+    assert.ok(inWarnings[0].message!.includes('draft'));
+  });
+
+  it('does not warn VALIDATION_IN when value is allowed', () => {
+    const def: ContentTypeDefinition = {
+      id: 'project', name: 'Project', fields: [
+        { id: 'status', name: 'Status', type: 'Symbol', validations: [{ in: ['active', 'completed'] }] },
+      ],
+    };
+    const entry = { id: 'e1', contentType: 'project', fields: { status: { en: 'active' } } };
+    const { warnings } = validateEntry(entry, def, 'en');
+    assert.equal(warnings.filter(w => w.type === 'VALIDATION_IN').length, 0);
+  });
+
+  it('warns VALIDATION_REGEXP when value does not match pattern', () => {
+    const def: ContentTypeDefinition = {
+      id: 'page', name: 'Page', fields: [
+        { id: 'slug', name: 'Slug', type: 'Symbol', validations: [{ regexp: { pattern: '^[a-z0-9-]+$' } }] },
+      ],
+    };
+    const entry = { id: 'e1', contentType: 'page', fields: { slug: { en: 'INVALID SLUG!' } } };
+    const { warnings } = validateEntry(entry, def, 'en');
+    const reWarnings = warnings.filter(w => w.type === 'VALIDATION_REGEXP');
+    assert.equal(reWarnings.length, 1);
+  });
+
+  it('warns VALIDATION_SIZE when string is too short', () => {
+    const def: ContentTypeDefinition = {
+      id: 'post', name: 'Post', fields: [
+        { id: 'title', name: 'Title', type: 'Symbol', validations: [{ size: { min: 5, max: 100 } }] },
+      ],
+    };
+    const entry = { id: 'e1', contentType: 'post', fields: { title: { en: 'Hi' } } };
+    const { warnings } = validateEntry(entry, def, 'en');
+    assert.ok(warnings.some(w => w.type === 'VALIDATION_SIZE'));
+  });
+
+  it('warns VALIDATION_RANGE when number is out of bounds', () => {
+    const def: ContentTypeDefinition = {
+      id: 'product', name: 'Product', fields: [
+        { id: 'price', name: 'Price', type: 'Number', validations: [{ range: { min: 0, max: 10000 } }] },
+      ],
+    };
+    const entry = { id: 'e1', contentType: 'product', fields: { price: { en: -5 } } };
+    const { warnings } = validateEntry(entry, def, 'en');
+    assert.ok(warnings.some(w => w.type === 'VALIDATION_RANGE'));
+  });
+
+  it('warns VALIDATION_DATE_RANGE when date is out of bounds', () => {
+    const def: ContentTypeDefinition = {
+      id: 'event', name: 'Event', fields: [
+        { id: 'date', name: 'Date', type: 'Date', validations: [{ dateRange: { min: '2026-01-01', max: '2026-12-31' } }] },
+      ],
+    };
+    const entry = { id: 'e1', contentType: 'event', fields: { date: { en: '2025-06-15' } } };
+    const { warnings } = validateEntry(entry, def, 'en');
+    assert.ok(warnings.some(w => w.type === 'VALIDATION_DATE_RANGE'));
+  });
+
+  it('skips validation checks for null/undefined field values', () => {
+    const def: ContentTypeDefinition = {
+      id: 'project', name: 'Project', fields: [
+        { id: 'status', name: 'Status', type: 'Symbol', validations: [{ in: ['active', 'completed'] }] },
+      ],
+    };
+    const entry = { id: 'e1', contentType: 'project', fields: { status: { en: null } } };
+    const { warnings } = validateEntry(entry, def, 'en');
+    assert.equal(warnings.filter(w => w.type === 'VALIDATION_IN').length, 0);
+  });
+});
+
+describe('validateAll — unique validation', () => {
+  it('warns VALIDATION_UNIQUE for duplicate values across entries', () => {
+    const def: ContentTypeDefinition = {
+      id: 'page', name: 'Page', fields: [
+        { id: 'slug', name: 'Slug', type: 'Symbol', validations: [{ unique: true }] },
+      ],
+    };
+    const entries = [
+      { id: 'e1', contentType: 'page', fields: { slug: { en: '/about' } } },
+      { id: 'e2', contentType: 'page', fields: { slug: { en: '/about' } } },
+    ];
+    const result = validateAll(entries, { page: def }, 'en');
+    assert.ok(result.warnings.some(w => w.type === 'VALIDATION_UNIQUE'));
+  });
+
+  it('does not warn VALIDATION_UNIQUE for distinct values', () => {
+    const def: ContentTypeDefinition = {
+      id: 'page', name: 'Page', fields: [
+        { id: 'slug', name: 'Slug', type: 'Symbol', validations: [{ unique: true }] },
+      ],
+    };
+    const entries = [
+      { id: 'e1', contentType: 'page', fields: { slug: { en: '/about' } } },
+      { id: 'e2', contentType: 'page', fields: { slug: { en: '/contact' } } },
+    ];
+    const result = validateAll(entries, { page: def }, 'en');
+    assert.equal(result.warnings.filter(w => w.type === 'VALIDATION_UNIQUE').length, 0);
+  });
 });
 
 describe('validateAll', () => {

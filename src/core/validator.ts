@@ -80,6 +80,127 @@ export function validateEntry(
     }
   }
 
+  // Check field-level validations (in, regexp, size, range, unique, dateRange)
+  for (const fieldDef of (ctDef.fields || [])) {
+    if (!fieldDef.validations?.length) continue;
+    const wrapper = entry.fields[fieldDef.id];
+    if (!wrapper) continue;
+    const val = wrapper[baseLocale];
+    if (val === null || val === undefined) continue;
+
+    for (const v of fieldDef.validations) {
+      // Allowed values
+      if (v.in && Array.isArray(v.in)) {
+        if (!v.in.includes(val as string)) {
+          warnings.push({
+            type: 'VALIDATION_IN',
+            contentType: entry.contentType,
+            field: fieldDef.id,
+            entryId: entry.id,
+            message: `Value "${String(val)}" is not in allowed values [${v.in.join(', ')}]`,
+          });
+        }
+      }
+
+      // Regex pattern
+      const regexp = v.regexp as { pattern: string; flags?: string } | undefined;
+      if (regexp?.pattern) {
+        try {
+          const re = new RegExp(regexp.pattern, regexp.flags || '');
+          if (typeof val === 'string' && !re.test(val)) {
+            warnings.push({
+              type: 'VALIDATION_REGEXP',
+              contentType: entry.contentType,
+              field: fieldDef.id,
+              entryId: entry.id,
+              message: `Value "${val}" does not match pattern /${regexp.pattern}/${regexp.flags || ''}`,
+            });
+          }
+        } catch { /* skip invalid regex from CMS */ }
+      }
+
+      // Size (string length or array length)
+      const size = v.size as { min?: number; max?: number } | undefined;
+      if (size) {
+        const len = typeof val === 'string' ? val.length : Array.isArray(val) ? val.length : null;
+        if (len !== null) {
+          if (size.min !== undefined && len < size.min) {
+            warnings.push({
+              type: 'VALIDATION_SIZE',
+              contentType: entry.contentType,
+              field: fieldDef.id,
+              entryId: entry.id,
+              message: `Length ${len} is below minimum ${size.min}`,
+            });
+          }
+          if (size.max !== undefined && len > size.max) {
+            warnings.push({
+              type: 'VALIDATION_SIZE',
+              contentType: entry.contentType,
+              field: fieldDef.id,
+              entryId: entry.id,
+              message: `Length ${len} exceeds maximum ${size.max}`,
+            });
+          }
+        }
+      }
+
+      // Range (numeric min/max)
+      const range = v.range as { min?: number; max?: number } | undefined;
+      if (range && typeof val === 'number') {
+        if (range.min !== undefined && val < range.min) {
+          warnings.push({
+            type: 'VALIDATION_RANGE',
+            contentType: entry.contentType,
+            field: fieldDef.id,
+            entryId: entry.id,
+            message: `Value ${val} is below minimum ${range.min}`,
+          });
+        }
+        if (range.max !== undefined && val > range.max) {
+          warnings.push({
+            type: 'VALIDATION_RANGE',
+            contentType: entry.contentType,
+            field: fieldDef.id,
+            entryId: entry.id,
+            message: `Value ${val} exceeds maximum ${range.max}`,
+          });
+        }
+      }
+
+      // Unique (track for post-processing; here just flag the constraint)
+      if (v.unique === true) {
+        // Unique validation requires cross-entry comparison — handled in validateAll
+      }
+
+      // Date range
+      const dateRange = v.dateRange as { min?: string; max?: string } | undefined;
+      if (dateRange && typeof val === 'string') {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) {
+          if (dateRange.min && d < new Date(dateRange.min)) {
+            warnings.push({
+              type: 'VALIDATION_DATE_RANGE',
+              contentType: entry.contentType,
+              field: fieldDef.id,
+              entryId: entry.id,
+              message: `Date ${val} is before minimum ${dateRange.min}`,
+            });
+          }
+          if (dateRange.max && d > new Date(dateRange.max)) {
+            warnings.push({
+              type: 'VALIDATION_DATE_RANGE',
+              contentType: entry.contentType,
+              field: fieldDef.id,
+              entryId: entry.id,
+              message: `Date ${val} is after maximum ${dateRange.max}`,
+            });
+          }
+        }
+      }
+    }
+  }
+
   // Check entry ID length
   if (entry.id && entry.id.length > 64) {
     warnings.push({
@@ -108,6 +229,32 @@ export function validateAll(
     const { errors, warnings } = validateEntry(entry, ctDef, baseLocale);
     allErrors.push(...errors);
     allWarnings.push(...warnings);
+  }
+
+  // Cross-entry unique validation
+  const uniqueTracker: Map<string, Map<unknown, string>> = new Map(); // "ct:field" → value → first entryId
+  for (const entry of entries) {
+    const ctDef = getSchema(entry.contentType);
+    if (!ctDef?.fields) continue;
+    for (const fieldDef of ctDef.fields) {
+      if (!fieldDef.validations?.some(v => v.unique === true)) continue;
+      const key = `${entry.contentType}:${fieldDef.id}`;
+      if (!uniqueTracker.has(key)) uniqueTracker.set(key, new Map());
+      const seen = uniqueTracker.get(key)!;
+      const val = entry.fields[fieldDef.id]?.[baseLocale];
+      if (val === null || val === undefined) continue;
+      if (seen.has(val)) {
+        allWarnings.push({
+          type: 'VALIDATION_UNIQUE',
+          contentType: entry.contentType,
+          field: fieldDef.id,
+          entryId: entry.id,
+          message: `Duplicate value "${String(val)}" — also in entry "${seen.get(val)}"`,
+        });
+      } else {
+        seen.set(val, entry.id);
+      }
+    }
   }
 
   return { errors: allErrors, warnings: allWarnings };
