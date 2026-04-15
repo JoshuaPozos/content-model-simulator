@@ -2,6 +2,11 @@
 
 All notable changes to `content-model-simulator` are documented here.
 
+## [0.2.2] — 2026-04-14
+
+### Fixed
+- **`--config` now applies `schemas`, `input`, `transforms`, `plugins`, `name`, and `output`** for the `simulate` and `validate` subcommands. Previously, configuration was loaded *after* the `--schemas` requirement check, so these fields from the config file were silently ignored. The config file is now loaded early and merged before argument validation.
+
 ## [0.2.1] — 2026-04-14
 
 ### Added

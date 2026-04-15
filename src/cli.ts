@@ -619,8 +619,25 @@ async function main(): Promise<void> {
 
   if (args.help) { showHelp(); process.exit(0); }
 
+  // Load config early so it can provide schemas, input, transforms
+  if (args.config) {
+    const configPath = resolve(args.config);
+    if (existsSync(configPath)) {
+      const cfg = JSON.parse(readFileSync(configPath, 'utf-8'));
+      if (!args.schemas && cfg.schemas) args.schemas = cfg.schemas;
+      if (!args.input && cfg.input) args.input = cfg.input;
+      if (!args.transforms && cfg.transforms) args.transforms = cfg.transforms;
+      if (!args.plugins && cfg.plugins) args.plugins = cfg.plugins;
+      if (!args.name && cfg.name) args.name = cfg.name;
+      if (!args.output && cfg.output) args.output = cfg.output;
+    } else {
+      console.error(`${c.red}Error: Config file not found: ${configPath}${c.reset}`);
+      process.exit(1);
+    }
+  }
+
   if (!args.schemas) {
-    console.error(`${c.red}Error: --schemas is required${c.reset}`);
+    console.error(`${c.red}Error: --schemas is required (or set "schemas" in config file)${c.reset}`);
     showHelp();
     process.exit(1);
   }
@@ -932,8 +949,23 @@ ${c.cyan}EXAMPLES:${c.reset}
     process.exit(0);
   }
 
+  // Load config early so it can provide schemas, input, transforms
+  if (args.config) {
+    const configPath = resolve(args.config);
+    if (existsSync(configPath)) {
+      const cfg = JSON.parse(readFileSync(configPath, 'utf-8'));
+      if (!args.schemas && cfg.schemas) args.schemas = cfg.schemas;
+      if (!args.input && cfg.input) args.input = cfg.input;
+      if (!args.transforms && cfg.transforms) args.transforms = cfg.transforms;
+      if (!args.plugins && cfg.plugins) args.plugins = cfg.plugins;
+    } else {
+      console.error(`${c.red}Error: Config file not found: ${configPath}${c.reset}`);
+      process.exit(1);
+    }
+  }
+
   if (!args.schemas) {
-    console.error(`${c.red}Error: --schemas is required${c.reset}`);
+    console.error(`${c.red}Error: --schemas is required (or set "schemas" in config file)${c.reset}`);
     process.exit(1);
   }
 
