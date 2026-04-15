@@ -2,6 +2,12 @@
 
 All notable changes to `content-model-simulator` are documented here.
 
+## [0.2.0] — 2026-04-14
+
+### Added
+- **Field-level validation enforcement**: `validateEntry()` and `validateAll()` now check `in` (allowed values), `regexp` (pattern match), `size` (string/array length), `range` (numeric min/max), `dateRange` (date bounds), and `unique` (cross-entry duplicate detection). Issues are reported as `VALIDATION_IN`, `VALIDATION_REGEXP`, `VALIDATION_SIZE`, `VALIDATION_RANGE`, `VALIDATION_DATE_RANGE`, and `VALIDATION_UNIQUE` warnings.
+- **`--config` for `cms-sim pull`**: the pull subcommand now accepts `--config=<file>` to load `spaceId`, `accessToken`, `environment`, `output`, and other pull options from a JSON config file.
+
 ## [0.1.1] — 2026-04-13
 
 ### Fixed
@@ -32,7 +38,7 @@ All notable changes to `content-model-simulator` are documented here.
 - **Entry validation**: field-level checks against content type definitions
 - **`writeReport()`**: write simulation report to JSON
 - **TypeScript**: full migration to `.ts` with strict mode, declarations, and source maps
-- **Test suite**: 396 tests (unit + e2e), zero `as any` casts
+- **Test suite**: 362 tests (unit + e2e), zero `as any` casts
 - **Duplicate field detection**: `DUPLICATE_FIELD` warning for schemas with repeated field IDs
 - **Deterministic entry IDs**: IDs are now based on `path+locale` (most stable across runs), with fallback to `id+locale`
 - **`MISSING_CONTENT_TYPE` warning**: for documents without a `contentType` property

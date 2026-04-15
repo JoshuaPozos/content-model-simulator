@@ -55,6 +55,7 @@ interface PullArgs {
   includeAssets: boolean;
   maxEntries: number;
   contentType: string | null;
+  config: string | null;
   preview: boolean;
   verbose: boolean;
   help: boolean;
@@ -237,6 +238,7 @@ ${c.cyan}REQUIRED:${c.reset}
 ${c.cyan}OPTIONS:${c.reset}
   --environment=<env>   Environment (default: master)
   --output=<dir>        Output directory (default: ./contentful-export)
+  --config=<file>       Configuration file (JSON) — can provide spaceId, accessToken, etc.
   --include-entries     Also download published entries
   --include-assets      Download asset files (images, documents)
   --max-entries=<n>     Max entries to download (default: 1000)
@@ -633,6 +635,7 @@ async function pullMain(argv: string[]): Promise<void> {
     includeAssets: false,
     maxEntries: 1000,
     contentType: null,
+    config: null,
     preview: false,
     verbose: false,
     help: false,
@@ -657,10 +660,31 @@ async function pullMain(argv: string[]): Promise<void> {
       case 'output': args.output = val; break;
       case 'max-entries': args.maxEntries = parseInt(val, 10) || 1000; break;
       case 'content-type': args.contentType = val; break;
+      case 'config': args.config = val; break;
     }
   }
 
   if (args.help) { showPullHelp(); process.exit(0); }
+
+  // Load config file and use as fallbacks
+  if (args.config) {
+    const configPath = resolve(args.config);
+    if (existsSync(configPath)) {
+      const pullConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
+      if (!args.spaceId && pullConfig.spaceId) args.spaceId = pullConfig.spaceId;
+      if (!args.accessToken && pullConfig.accessToken) args.accessToken = pullConfig.accessToken;
+      if (pullConfig.environment && args.environment === 'master') args.environment = pullConfig.environment;
+      if (pullConfig.output && args.output === './contentful-export') args.output = pullConfig.output;
+      if (pullConfig.contentType && !args.contentType) args.contentType = pullConfig.contentType;
+      if (pullConfig.maxEntries && args.maxEntries === 1000) args.maxEntries = pullConfig.maxEntries;
+      if (pullConfig.includeEntries) args.includeEntries = args.includeEntries || pullConfig.includeEntries;
+      if (pullConfig.includeAssets) args.includeAssets = args.includeAssets || pullConfig.includeAssets;
+      if (pullConfig.preview) args.preview = args.preview || pullConfig.preview;
+    } else {
+      console.error(`${c.red}Error: Config file not found: ${configPath}${c.reset}`);
+      process.exit(1);
+    }
+  }
 
   if (args.maxEntries !== 1000 && !args.includeEntries) {
     console.log(`${c.yellow}⚠ --max-entries has no effect without --include-entries${c.reset}\n`);
