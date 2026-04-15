@@ -399,6 +399,77 @@ describe('CLI: watch mode output dir', () => {
   });
 });
 
+// ─── Config file ────────────────────────────────────────────────
+
+describe('CLI: --config flag', () => {
+  let outDir: string | undefined;
+
+  afterEach(() => {
+    if (outDir) cleanup(outDir);
+  });
+
+  it('loads schemas from config file (no --schemas needed)', async () => {
+    outDir = tmpDir();
+    const configFile = path.join(outDir, 'cms-sim.config.json');
+    fs.writeFileSync(configFile, JSON.stringify({
+      schemas: SCHEMAS_DIR,
+      name: 'config-test',
+    }));
+
+    const { stdout } = await cli([
+      `--config=${configFile}`,
+      `--output=${outDir}`,
+    ]);
+
+    assert.ok(stdout.includes('Content Model Simulator'));
+    assert.ok(fs.existsSync(path.join(outDir, 'manifest.json')));
+  });
+
+  it('CLI args override config values', async () => {
+    outDir = tmpDir();
+    const configFile = path.join(outDir, 'cms-sim.config.json');
+    fs.writeFileSync(configFile, JSON.stringify({
+      schemas: '/nonexistent/dir',
+      name: 'from-config',
+    }));
+
+    const { stdout } = await cli([
+      `--config=${configFile}`,
+      `--schemas=${SCHEMAS_DIR}`,
+      `--output=${outDir}`,
+    ]);
+
+    assert.ok(stdout.includes('Content Model Simulator'));
+    assert.ok(fs.existsSync(path.join(outDir, 'manifest.json')));
+  });
+
+  it('validate subcommand loads schemas from config', async () => {
+    outDir = tmpDir();
+    const configFile = path.join(outDir, 'cms-sim.config.json');
+    fs.writeFileSync(configFile, JSON.stringify({
+      schemas: SCHEMAS_DIR,
+    }));
+
+    const { stdout } = await cli([
+      'validate',
+      `--config=${configFile}`,
+    ]);
+
+    assert.ok(stdout.includes('Content Types:'));
+    assert.ok(stdout.includes('No errors'));
+  });
+
+  it('errors on missing config file', async () => {
+    await assert.rejects(
+      cli([`--config=/nonexistent/config.json`, `--schemas=${SCHEMAS_DIR}`]),
+      (err: any) => {
+        assert.ok(err.stderr.includes('Config file not found'));
+        return true;
+      },
+    );
+  });
+});
+
 // ─── Validate sub-command ────────────────────────────────────────
 
 describe('CLI: validate subcommand', () => {
