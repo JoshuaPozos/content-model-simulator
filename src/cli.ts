@@ -49,6 +49,7 @@ interface SimulateArgs {
 interface PullArgs {
   spaceId: string | null;
   accessToken: string | null;
+  managementToken: string | null;
   environment: string;
   output: string;
   includeEntries: boolean;
@@ -236,6 +237,8 @@ ${c.cyan}REQUIRED:${c.reset}
                         ${c.dim}Or set CONTENTFUL_SPACE_ID / CONTENTFUL_ACCESS_TOKEN env vars${c.reset}
 
 ${c.cyan}OPTIONS:${c.reset}
+  --management-token=<tok>  CMA token — fetches schemas with full field validations
+                        ${c.dim}(in, regexp, size, range, unique). Or set CONTENTFUL_MANAGEMENT_TOKEN${c.reset}
   --environment=<env>   Environment (default: master)
   --output=<dir>        Output directory (default: ./contentful-export)
   --config=<file>       Configuration file (JSON) — can provide spaceId, accessToken, etc.
@@ -268,6 +271,7 @@ ${c.cyan}EXAMPLES:${c.reset}
   cms-sim pull --output=my-project/
 
 ${c.yellow}Note:${c.reset} Your access token is never stored or logged. Use a CDA (read-only) or CPA (preview) token.
+${c.dim}      A management token (--management-token) ensures all field validations are downloaded.${c.reset}
 `);
 }
 
@@ -629,6 +633,7 @@ async function pullMain(argv: string[]): Promise<void> {
   const args: PullArgs = {
     spaceId: process.env.CONTENTFUL_SPACE_ID || null,
     accessToken: process.env.CONTENTFUL_ACCESS_TOKEN || null,
+    managementToken: process.env.CONTENTFUL_MANAGEMENT_TOKEN || null,
     environment: 'master',
     output: './contentful-export',
     includeEntries: false,
@@ -656,6 +661,7 @@ async function pullMain(argv: string[]): Promise<void> {
     switch (key) {
       case 'space-id': args.spaceId = val; break;
       case 'access-token': args.accessToken = val; break;
+      case 'management-token': args.managementToken = val; break;
       case 'environment': args.environment = val; break;
       case 'output': args.output = val; break;
       case 'max-entries': args.maxEntries = parseInt(val, 10) || 1000; break;
@@ -673,6 +679,7 @@ async function pullMain(argv: string[]): Promise<void> {
       const pullConfig = JSON.parse(readFileSync(configPath, 'utf-8'));
       if (!args.spaceId && pullConfig.spaceId) args.spaceId = pullConfig.spaceId;
       if (!args.accessToken && pullConfig.accessToken) args.accessToken = pullConfig.accessToken;
+      if (!args.managementToken && pullConfig.managementToken) args.managementToken = pullConfig.managementToken;
       if (pullConfig.environment && args.environment === 'master') args.environment = pullConfig.environment;
       if (pullConfig.output && args.output === './contentful-export') args.output = pullConfig.output;
       if (pullConfig.contentType && !args.contentType) args.contentType = pullConfig.contentType;
@@ -697,7 +704,7 @@ async function pullMain(argv: string[]): Promise<void> {
   const outputDir = resolve(args.output);
 
   console.log(`\n${c.cyan}${'═'.repeat(68)}${c.reset}`);
-  console.log(`${c.bold}Content Model Simulator — Pull${c.reset}${args.preview ? ` ${c.yellow}(Preview API)${c.reset}` : ''}`);
+  console.log(`${c.bold}Content Model Simulator — Pull${c.reset}${args.preview ? ` ${c.yellow}(Preview API)${c.reset}` : ''}${args.managementToken ? ` ${c.green}(CMA for schemas)${c.reset}` : ''}`);
   console.log(`${c.cyan}${'═'.repeat(68)}${c.reset}\n`);
   console.log(`${c.dim}Downloading content model from Contentful (read-only${args.preview ? ', including drafts' : ''})...${c.reset}\n`);
 
@@ -705,7 +712,8 @@ async function pullMain(argv: string[]): Promise<void> {
 
   const result = await pull({
     spaceId: args.spaceId!,
-    accessToken: args.accessToken!,
+    accessToken: args.accessToken || args.managementToken!,
+    managementToken: args.managementToken || undefined,
     environment: args.environment,
     outputDir,
     includeEntries: args.includeEntries,
@@ -716,13 +724,17 @@ async function pullMain(argv: string[]): Promise<void> {
     verbose: args.verbose,
   });
 
-  console.log(`\n${c.green}✓${c.reset} Downloaded ${c.bold}${result.schemas.length}${c.reset} content types`);
+  console.log(`\n${c.green}✓${c.reset} Downloaded ${c.bold}${result.schemas.length}${c.reset} content types${args.managementToken ? ' (with full validations via CMA)' : ''}`);
   console.log(`${c.green}✓${c.reset} ${c.bold}${result.locales.length}${c.reset} locales (base: ${result.defaultLocale})`);
   if (result.documents) {
     console.log(`${c.green}✓${c.reset} ${c.bold}${result.documents.length}${c.reset} entry-locale documents`);
   }
   if (result.assets) {
     console.log(`${c.green}✓${c.reset} ${c.bold}${result.assets.length}${c.reset} asset files downloaded`);
+  }
+  if (!args.managementToken) {
+    console.log(`\n${c.yellow}Tip:${c.reset} Add --management-token=<CMA_TOKEN> to include all field validations`);
+    console.log(`${c.dim}     (in, regexp, size, range, unique). Without it, only linkContentType is guaranteed.${c.reset}`);
   }
 
   console.log(`\n${c.cyan}${'─'.repeat(68)}${c.reset}`);

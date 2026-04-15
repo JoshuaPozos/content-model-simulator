@@ -375,4 +375,129 @@ describe('pull', () => {
     assert.ok(urls.every(u => u.startsWith('https://cdn.contentful.com')),
       `Expected all URLs to use CDA, got: ${urls[0]}`);
   });
+
+  it('uses CMA for content types when managementToken is provided', async () => {
+    const urlsAndHeaders: { url: string; auth: string }[] = [];
+    globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      const auth = (init?.headers as Record<string, string>)?.Authorization || '';
+      urlsAndHeaders.push({ url, auth });
+      if (url.includes('/locales')) {
+        return mockFetchResponse({ items: [mockLocale], total: 1 });
+      }
+      if (url.includes('/content_types')) {
+        return mockFetchResponse({ items: [mockCT], total: 1 });
+      }
+      return mockFetchResponse({ items: [], total: 0 });
+    };
+
+    await pull({
+      spaceId: 'space1',
+      accessToken: 'cda-token',
+      managementToken: 'cma-token',
+      outputDir: tmpDir,
+    });
+
+    // Locales should use CDA with CDA token
+    const localeCall = urlsAndHeaders.find(c => c.url.includes('/locales'));
+    assert.ok(localeCall?.url.startsWith('https://cdn.contentful.com'), 'Locales should use CDA');
+    assert.equal(localeCall?.auth, 'Bearer cda-token');
+
+    // Content types should use CMA with management token
+    const typesCall = urlsAndHeaders.find(c => c.url.includes('/content_types'));
+    assert.ok(typesCall?.url.startsWith('https://api.contentful.com'), 'Content types should use CMA');
+    assert.equal(typesCall?.auth, 'Bearer cma-token');
+  });
+
+  it('preserves all field validations from CMA response', async () => {
+    const ctWithValidations = {
+      sys: { id: 'product', type: 'ContentType' },
+      name: 'Product',
+      displayField: 'name',
+      fields: [
+        {
+          id: 'name', name: 'Name', type: 'Symbol', required: true,
+          validations: [{ size: { min: 1, max: 100 } }],
+        },
+        {
+          id: 'status', name: 'Status', type: 'Symbol',
+          validations: [{ in: ['active', 'completed', 'archived', 'in-progress'] }],
+        },
+        {
+          id: 'sku', name: 'SKU', type: 'Symbol',
+          validations: [
+            { unique: true },
+            { regexp: { pattern: '^[A-Z]{2}-\\d{4}$', flags: null } },
+          ],
+        },
+        {
+          id: 'price', name: 'Price', type: 'Number',
+          validations: [{ range: { min: 0, max: 99999 } }],
+        },
+        {
+          id: 'tags', name: 'Tags', type: 'Array',
+          items: {
+            type: 'Symbol',
+            validations: [{ in: ['sale', 'new', 'featured'] }],
+          },
+        },
+        {
+          id: 'category', name: 'Category', type: 'Link', linkType: 'Entry',
+          validations: [{ linkContentType: ['category'] }],
+        },
+      ],
+    };
+
+    globalThis.fetch = (input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
+      if (url.includes('/locales')) {
+        return mockFetchResponse({ items: [mockLocale], total: 1 });
+      }
+      if (url.includes('/content_types')) {
+        return mockFetchResponse({ items: [ctWithValidations], total: 1 });
+      }
+      return mockFetchResponse({ items: [], total: 0 });
+    };
+
+    const result = await pull({
+      spaceId: 'space1',
+      accessToken: 'cda-token',
+      managementToken: 'cma-token',
+      outputDir: tmpDir,
+    });
+
+    const schema = result.schemas[0];
+
+    // Allowed values (in)
+    const statusField = schema.fields.find(f => f.id === 'status');
+    assert.deepEqual(statusField.validations, [{ in: ['active', 'completed', 'archived', 'in-progress'] }]);
+
+    // Unique + regexp
+    const skuField = schema.fields.find(f => f.id === 'sku');
+    assert.equal(skuField.validations.length, 2);
+    assert.deepEqual(skuField.validations[0], { unique: true });
+    assert.ok(skuField.validations[1].regexp);
+
+    // Range
+    const priceField = schema.fields.find(f => f.id === 'price');
+    assert.deepEqual(priceField.validations, [{ range: { min: 0, max: 99999 } }]);
+
+    // Size
+    const nameField = schema.fields.find(f => f.id === 'name');
+    assert.deepEqual(nameField.validations, [{ size: { min: 1, max: 100 } }]);
+
+    // Array item validations
+    const tagsField = schema.fields.find(f => f.id === 'tags');
+    assert.deepEqual(tagsField.items.validations, [{ in: ['sale', 'new', 'featured'] }]);
+
+    // linkContentType
+    const catField = schema.fields.find(f => f.id === 'category');
+    assert.deepEqual(catField.validations, [{ linkContentType: ['category'] }]);
+
+    // Verify written to disk
+    const schemaFile = path.join(tmpDir, 'schemas', 'product.js');
+    const content = fs.readFileSync(schemaFile, 'utf-8');
+    assert.ok(content.includes('"in-progress"'), 'Schema file should contain allowed values');
+    assert.ok(content.includes('"unique"'), 'Schema file should contain unique validation');
+  });
 });
