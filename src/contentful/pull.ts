@@ -132,6 +132,7 @@ export async function pull(options: PullOptions): Promise<PullResult> {
   const {
     spaceId,
     accessToken,
+    managementToken,
     environment = 'master',
     outputDir,
     includeEntries = false,
@@ -144,11 +145,19 @@ export async function pull(options: PullOptions): Promise<PullResult> {
   } = options;
 
   if (!spaceId) throw new Error('Missing --space-id (or CONTENTFUL_SPACE_ID env var)');
-  if (!accessToken) throw new Error('Missing --access-token (or CONTENTFUL_ACCESS_TOKEN env var)');
+  if (!accessToken && !managementToken) throw new Error('Missing --access-token (or CONTENTFUL_ACCESS_TOKEN env var)');
 
   const base = useCMA ? CMA_BASE : (usePreview ? CPA_BASE : CDA_BASE);
   const envUrl = `${base}/spaces/${encodeURIComponent(spaceId)}/environments/${encodeURIComponent(environment)}`;
-  const headers = { Authorization: `Bearer ${accessToken}` };
+  const headers = { Authorization: `Bearer ${accessToken || managementToken}` };
+
+  // When a management token is provided, use CMA for content types to get full validations.
+  // The CDA may omit editor-only validations (in, regexp, size, range, unique).
+  const useCMAForTypes = !!(managementToken && !useCMA);
+  const cmaEnvUrl = `${CMA_BASE}/spaces/${encodeURIComponent(spaceId)}/environments/${encodeURIComponent(environment)}`;
+  const cmaHeaders = managementToken ? { Authorization: `Bearer ${managementToken}` } : headers;
+  const typesUrl = useCMAForTypes ? cmaEnvUrl : envUrl;
+  const typesHeaders = useCMAForTypes ? cmaHeaders : headers;
 
   // ── Fetch locales ──────────────────────────────────────────
   if (verbose) console.log('\nFetching locales...');
@@ -158,8 +167,8 @@ export async function pull(options: PullOptions): Promise<PullResult> {
   if (verbose) console.log(`  Found ${locales.length} locale(s): ${locales.join(', ')}`);
 
   // ── Fetch content types ────────────────────────────────────
-  if (verbose) console.log('\nFetching content types...');
-  const contentTypesRaw = await fetchAll(`${envUrl}/content_types`, headers, { verbose, usePreview });
+  if (verbose) console.log(`\nFetching content types${useCMAForTypes ? ' (via CMA — includes all validations)' : ''}...`);
+  const contentTypesRaw = await fetchAll(`${typesUrl}/content_types`, typesHeaders, { verbose });
   const schemas = contentTypesRaw.map(toSchema);
   if (verbose) console.log(`  Found ${schemas.length} content type(s)`);
 

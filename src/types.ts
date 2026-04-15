@@ -221,6 +221,7 @@ export interface TransformerLike {
 export interface PullOptions {
   spaceId: string;
   accessToken: string;
+  managementToken?: string;
   environment?: string;
   outputDir?: string;
   includeEntries?: boolean;
