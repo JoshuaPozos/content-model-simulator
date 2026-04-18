@@ -2,6 +2,21 @@
 
 All notable changes to `content-model-simulator` are documented here.
 
+## [0.3.0] — 2026-04-17
+
+### Added
+- **`cms-sim from-migrations`**: new subcommand that converts `contentful-migration` scripts (`.js`/`.mjs`/`.cjs`/`.ts`) into cms-sim schema files — no Contentful connection needed. Executes migration functions with a mock `Migration` object that captures `createContentType`, `editContentType`, `deleteContentType`, `createField`, `editField`, `deleteField`, and `changeFieldId` calls. Supports both prop-style and fluent-chaining APIs. Multiple migration files accumulate state in order — so file #2 can `editContentType` what file #1 created.
+  - CLI: `--migrations=<dir>` (auto-sorted by filename) or positional args, `--output=<dir>` (default: `./schemas`), `--verbose`
+  - TypeScript migration files require running under `tsx`: `npx tsx $(which cms-sim) from-migrations ...`
+- **Programmatic API**: `fromMigrations({ files })`, `fromMigration(filePath)`, `writeMigrationSchemas(schemas, outputDir)`, `discoverMigrationFiles(dir)`, `MigrationMock` class — all exported from `content-model-simulator`
+- **Types**: `FromMigrationsOptions`, `FromMigrationsResult` exported
+- **Example project**: `example-from-migrations/` — 3 migration files (prop-style, fluent, edit/rename/delete) with end-to-end `extract → simulate` workflow
+- **40 unit tests** for migration-adapter (MigrationMock, field operations, fromMigrations, writeMigrationSchemas, discoverMigrationFiles) + **6 e2e tests** for the `from-migrations` CLI subcommand
+
+### Security
+- `writeMigrationSchemas` now sanitizes content type IDs in filenames (`replace(/[^a-zA-Z0-9_-]/g, '_')`) — prevents path traversal
+- `discoverMigrationFiles` uses `realpathSync` + containment check — prevents symlink escape from migrations directory
+
 ## [0.2.2] — 2026-04-14
 
 ### Fixed

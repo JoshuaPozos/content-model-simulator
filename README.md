@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/content-model-simulator)](https://www.npmjs.com/package/content-model-simulator)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)
-![Tests](https://img.shields.io/badge/tests-362%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-457%20passing-brightgreen)
 ![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -92,7 +92,7 @@ Interactive SVG diagram of your content types and their relationships. Zoom, pan
 | **CMS migration preview** | Feed WordPress XML, Sanity NDJSON, or generic JSON exports alongside your Contentful schemas. See exactly how the migrated content will look. |
 | **CI/CD validation** | `cms-sim validate --json` for pipelines. Exit code 1 on errors. |
 
-## Three workflows
+## Four workflows
 
 ### 1. Design a content model (no data needed)
 
@@ -133,6 +133,21 @@ npx cms-sim --schemas=schemas/ --input=data/export.ndjson --transforms=transform
 # Auto-scaffold schemas from WordPress
 npx cms-sim scaffold --input=data/export.xml --output=my-project/
 ```
+
+### 4. Convert existing contentful-migration scripts
+
+```bash
+# Convert migration files → cms-sim schemas (no Contentful connection needed)
+npx cms-sim from-migrations --migrations=./migrations/ --output=./schemas/
+
+# TypeScript migration files (requires tsx)
+npx tsx $(which cms-sim) from-migrations --migrations=./migrations/ --output=./schemas/
+
+# Then simulate as usual
+npx cms-sim --schemas=./schemas/ --open
+```
+
+> **Why?** Many teams already have `contentful-migration` files as their content model source of truth. `from-migrations` lets you preview the model locally without running migrations against a real Contentful space.
 
 ## What this tool does NOT do
 
@@ -212,6 +227,20 @@ cms-sim diff --old=<dir> --new=<dir> [--json]
 Compare two schema directories or simulation outputs.
 ```
 
+### From Migrations
+
+```
+cms-sim from-migrations --migrations=<dir> [options]
+cms-sim from-migrations file1.js file2.js [options]
+
+  --migrations=<dir>     Directory of migration files (.js/.mjs/.cjs/.ts)
+  --output=<dir>         Output directory for schemas (default: ./schemas)
+  --verbose, -v          Print each file being loaded
+
+Supports both prop-style and fluent-chaining contentful-migration APIs.
+TypeScript files require running under tsx.
+```
+
 ### Init & Scaffold
 
 ```
@@ -252,7 +281,7 @@ fs.writeFileSync('./output/content-browser.html', generateContentBrowserHTML(rep
 fs.writeFileSync('./output/visual-report.html', generateModelGraphHTML(report));
 ```
 
-Full API exports: `simulate`, `readDocuments`, `readDocumentsStream`, `SchemaRegistry`, `TransformerRegistry`, `generateMockData`, `generateContentBrowserHTML`, `generateModelGraphHTML`, `writeReport`, `diffSchemas`, `diffReports`, `pullContentful`, `readWXR`, `parseWXR`, `readSanity`, `parseSanity`, `htmlToRichText`, `looksLikeHTML`, `isRichTextDocument`, `stripGutenbergComments`.
+Full API exports: `simulate`, `readDocuments`, `readDocumentsStream`, `SchemaRegistry`, `TransformerRegistry`, `generateMockData`, `generateContentBrowserHTML`, `generateModelGraphHTML`, `writeReport`, `diffSchemas`, `diffReports`, `pull`, `fromMigrations`, `fromMigration`, `writeMigrationSchemas`, `discoverMigrationFiles`, `MigrationMock`, `readWXR`, `parseWXR`, `readSanity`, `parseSanity`, `htmlToRichText`, `looksLikeHTML`, `isRichTextDocument`, `stripGutenbergComments`.
 
 ## Content Type Schema Format
 

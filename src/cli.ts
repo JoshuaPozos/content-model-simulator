@@ -21,6 +21,7 @@ import { generateModelGraphHTML } from './output/model-graph.js';
 import { writeReport } from './output/json-writer.js';
 import { parseWXR } from './wordpress/wxr-reader.js';
 import { scaffoldFromWXR } from './wordpress/wxr-scaffold.js';
+import { fromMigrations, discoverMigrationFiles, writeMigrationSchemas } from './contentful/migration-adapter.js';
 import type { SimulationReport } from './types.js';
 
 // ── Interfaces ───────────────────────────────────────────────────
@@ -86,6 +87,14 @@ interface ScaffoldArgs {
 
 interface InitArgs {
   name: string | null;
+  help: boolean;
+}
+
+interface FromMigrationsArgs {
+  migrations: string | null;
+  files: string[];
+  output: string;
+  verbose: boolean;
   help: boolean;
 }
 
@@ -171,6 +180,7 @@ ${c.cyan}COMMANDS:${c.reset}
   cms-sim [options]              ${c.dim}Run local simulation (default)${c.reset}
   cms-sim init [<name>]          ${c.dim}Scaffold a new project${c.reset}
   cms-sim scaffold [options]     ${c.dim}Generate schemas + transforms from a WordPress XML export${c.reset}
+  cms-sim from-migrations [opts] ${c.dim}Convert contentful-migration scripts → cms-sim schemas${c.reset}
   cms-sim pull [options]         ${c.dim}Download content model from Contentful${c.reset}
   cms-sim diff --old=A --new=B   ${c.dim}Compare two schema directories${c.reset}
   cms-sim validate [options]     ${c.dim}Validate schemas + data (no HTML output)${c.reset}
@@ -219,6 +229,7 @@ ${c.cyan}EXAMPLES:${c.reset}
   cms-sim --schemas=my-project/schemas/ --open
 
 Run ${c.bold}cms-sim pull --help${c.reset} for pull-specific options.
+Run ${c.bold}cms-sim from-migrations --help${c.reset} to convert migration files to schemas.
 `);
 }
 
@@ -643,6 +654,135 @@ async function main(): Promise<void> {
   }
 
   await runSimulation(args);
+}
+
+// ── from-migrations sub-command ────────────────────────────────
+
+function showFromMigrationsHelp(): void {
+  console.log(`
+${c.bold}Content Model Simulator — from-migrations${c.reset}
+Convert contentful-migration scripts to cms-sim schema files — no Contentful connection needed.
+Executes migration functions with a mock Migration object that captures content type definitions.
+
+${c.cyan}USAGE:${c.reset}
+  cms-sim from-migrations --migrations=<dir> [options]
+  cms-sim from-migrations file1.js file2.js [options]
+
+${c.cyan}INPUT (one of):${c.reset}
+  --migrations=<dir>    Directory of migration files (.js/.mjs/.cjs/.ts), run in filename order
+  <file> [<file>...]    One or more migration files passed as positional arguments
+
+${c.cyan}OPTIONS:${c.reset}
+  --output=<dir>        Output directory for schema files (default: ./schemas)
+  --verbose, -v         Print each file being loaded
+  --help, -h            Show this help
+
+${c.cyan}OUTPUT:${c.reset}
+  <output>/
+    <contentTypeId>.js  ${c.dim}One cms-sim schema file per content type${c.reset}
+
+${c.cyan}TYPESCRIPT FILES:${c.reset}
+  .ts migration files work when cms-sim is run under tsx:
+    ${c.dim}npx tsx \$(which cms-sim) from-migrations --migrations=./migrations/${c.reset}
+  .js/.mjs/.cjs files work with no extra tooling.
+
+${c.cyan}BOTH MIGRATION STYLES ARE SUPPORTED:${c.reset}
+  ${c.dim}// Prop-style${c.reset}
+  const ct = migration.createContentType('blogPost', { name: 'Blog Post' });
+  ct.createField('title', { name: 'Title', type: 'Symbol', required: true });
+
+  ${c.dim}// Fluent-chaining${c.reset}
+  const ct = migration.createContentType('blogPost').name('Blog Post');
+  ct.createField('title').name('Title').type('Symbol').required(true);
+
+${c.cyan}EXAMPLES:${c.reset}
+  cms-sim from-migrations --migrations=./migrations/ --output=./schemas/
+  cms-sim from-migrations ./migrations/01-create.js ./migrations/02-add-fields.js
+  npx tsx \$(which cms-sim) from-migrations --migrations=./migrations/ --output=./schemas/
+`);
+}
+
+async function fromMigrationsMain(argv: string[]): Promise<void> {
+  const args: FromMigrationsArgs = {
+    migrations: null,
+    files: [],
+    output: 'schemas',
+    verbose: false,
+    help: false,
+  };
+
+  for (const arg of argv) {
+    if (arg === '--help' || arg === '-h') { args.help = true; }
+    else if (arg === '--verbose' || arg === '-v') { args.verbose = true; }
+    else if (arg.startsWith('--migrations=')) { args.migrations = arg.slice('--migrations='.length); }
+    else if (arg.startsWith('--output=')) { args.output = arg.slice('--output='.length); }
+    else if (!arg.startsWith('--')) { args.files.push(arg); }
+  }
+
+  if (args.help) { showFromMigrationsHelp(); process.exit(0); }
+
+  // Collect the list of migration files to process
+  let migrationFiles: string[];
+  if (args.migrations) {
+    const dir = resolve(args.migrations);
+    if (!existsSync(dir)) {
+      console.error(`${c.red}Error: migrations directory not found: ${dir}${c.reset}`);
+      process.exit(1);
+    }
+    migrationFiles = discoverMigrationFiles(dir);
+    if (migrationFiles.length === 0) {
+      console.error(`${c.red}Error: no migration files (.js/.mjs/.cjs/.ts) found in: ${dir}${c.reset}`);
+      process.exit(1);
+    }
+  } else if (args.files.length > 0) {
+    migrationFiles = args.files.map(f => resolve(f));
+    for (const f of migrationFiles) {
+      if (!existsSync(f)) {
+        console.error(`${c.red}Error: file not found: ${f}${c.reset}`);
+        process.exit(1);
+      }
+    }
+  } else {
+    console.error(`${c.red}Error: provide --migrations=<dir> or pass migration files as arguments${c.reset}`);
+    showFromMigrationsHelp();
+    process.exit(1);
+  }
+
+  const outputDir = resolve(args.output);
+
+  console.log(`\n${c.bold}Content Model Simulator — from-migrations${c.reset}`);
+  console.log(`${c.dim}Converting ${migrationFiles.length} migration file(s) → schema files${c.reset}\n`);
+
+  const result = await fromMigrations({ files: migrationFiles, verbose: args.verbose });
+
+  if (result.warnings.length > 0) {
+    for (const w of result.warnings) {
+      console.warn(`${c.yellow}⚠  ${w}${c.reset}`);
+    }
+    if (result.filesProcessed.length === 0) {
+      process.exit(1);
+    }
+    console.log();
+  }
+
+  if (result.schemas.length === 0) {
+    console.warn(`${c.yellow}No content types captured. Check that your migration files call migration.createContentType().${c.reset}`);
+    process.exit(1);
+  }
+
+  const written = writeMigrationSchemas(result.schemas, outputDir);
+
+  console.log(`${c.green}✓${c.reset} Processed ${c.bold}${result.filesProcessed.length}${c.reset} migration file(s)`);
+  console.log(`${c.green}✓${c.reset} Captured ${c.bold}${result.schemas.length}${c.reset} content type(s)`);
+  console.log(`${c.green}✓${c.reset} Wrote ${c.bold}${written.length}${c.reset} schema file(s) → ${outputDir}`);
+
+  console.log(`\n${c.cyan}${'─'.repeat(60)}${c.reset}`);
+  result.schemas.forEach(s => {
+    console.log(`  ${c.bold}${s.id}${c.reset}  ${c.dim}${s.fields.length} field(s)${c.reset}`);
+  });
+
+  console.log(`\n${c.cyan}Next steps:${c.reset}`);
+  console.log(`  cms-sim --schemas=${args.output}/ --open`);
 }
 
 // ── Pull sub-command ─────────────────────────────────────────────
@@ -1477,6 +1617,7 @@ const subCommand = rawArgs[0] === 'pull' ? 'pull'
   : rawArgs[0] === 'validate' ? 'validate'
   : rawArgs[0] === 'init' ? 'init'
   : rawArgs[0] === 'scaffold' ? 'scaffold'
+  : rawArgs[0] === 'from-migrations' ? 'from-migrations'
   : 'simulate';
 
 if (subCommand === 'pull') {
@@ -1499,6 +1640,12 @@ if (subCommand === 'pull') {
   });
 } else if (subCommand === 'scaffold') {
   scaffoldMain(rawArgs.slice(1)).catch(err => {
+    console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);
+    if (process.env.DEBUG) console.error(err.stack);
+    process.exit(1);
+  });
+} else if (subCommand === 'from-migrations') {
+  fromMigrationsMain(rawArgs.slice(1)).catch(err => {
     console.error(`${c.red}${c.bold}Fatal error:${c.reset} ${err.message}`);
     if (process.env.DEBUG) console.error(err.stack);
     process.exit(1);
