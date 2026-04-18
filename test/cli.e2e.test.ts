@@ -732,3 +732,149 @@ describe('CLI: scaffold', () => {
     assert.ok(stdout.includes('title') || stdout.includes('slug') || stdout.includes('body'));
   });
 });
+
+// ─── from-migrations CLI ─────────────────────────────────────────
+
+/** Strip ANSI escape sequences for clean assertions */
+function stripAnsi(s: string): string {
+  return s.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+describe('CLI: from-migrations', () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    for (const d of tempDirs) cleanup(d);
+    tempDirs.length = 0;
+  });
+
+  it('shows help with from-migrations --help', async () => {
+    const { stdout } = await cli(['from-migrations', '--help']);
+    assert.ok(stdout.includes('from-migrations'));
+    assert.ok(stdout.includes('--migrations'));
+    assert.ok(stdout.includes('--output'));
+  });
+
+  it('converts migration files to schemas via --migrations flag', async () => {
+    const workDir = tmpDir();
+    tempDirs.push(workDir);
+
+    const migDir = path.join(workDir, 'migrations');
+    const outDir = path.join(workDir, 'schemas');
+    fs.mkdirSync(migDir);
+
+    // Create two migration files
+    fs.writeFileSync(path.join(migDir, '001-create.mjs'), `
+      export default function(migration) {
+        const ct = migration.createContentType('blogPost', { name: 'Blog Post', displayField: 'title' });
+        ct.createField('title', { name: 'Title', type: 'Symbol', required: true });
+        ct.createField('body', { name: 'Body', type: 'RichText' });
+      }
+    `);
+    fs.writeFileSync(path.join(migDir, '002-add-author.mjs'), `
+      export default function(migration) {
+        migration.createContentType('author', { name: 'Author' });
+        migration.editContentType('blogPost').createField('author', {
+          name: 'Author', type: 'Link', linkType: 'Entry',
+        });
+      }
+    `);
+
+    const { stdout } = await cli(['from-migrations', '--migrations=' + migDir, '--output=' + outDir]);
+    const plain = stripAnsi(stdout);
+
+    assert.ok(plain.includes('2 migration file'));
+    assert.ok(plain.includes('2 content type'));
+    assert.ok(plain.includes('2 schema file'));
+
+    // Verify output files
+    assert.ok(fs.existsSync(path.join(outDir, 'blogPost.js')));
+    assert.ok(fs.existsSync(path.join(outDir, 'author.js')));
+
+    // Verify content
+    const content = fs.readFileSync(path.join(outDir, 'blogPost.js'), 'utf-8');
+    assert.ok(content.includes('"blogPost"'));
+    assert.ok(content.includes('"title"'));
+    assert.ok(content.includes('"author"'));
+  });
+
+  it('converts migration files passed as positional arguments', async () => {
+    const workDir = tmpDir();
+    tempDirs.push(workDir);
+
+    const outDir = path.join(workDir, 'schemas');
+    const migFile = path.join(workDir, 'create.mjs');
+    fs.writeFileSync(migFile, `
+      export default function(migration) {
+        migration.createContentType('page', { name: 'Page' });
+      }
+    `);
+
+    const { stdout } = await cli(['from-migrations', migFile, '--output=' + outDir]);
+    assert.ok(stripAnsi(stdout).includes('1 migration file'));
+    assert.ok(fs.existsSync(path.join(outDir, 'page.js')));
+  });
+
+  it('errors when no migrations are provided', async () => {
+    await assert.rejects(
+      () => cli(['from-migrations']),
+      (err: any) => {
+        const output = (err.stderr || '') + (err.stdout || '');
+        assert.ok(output.includes('--migrations') || output.includes('provide'));
+        return true;
+      }
+    );
+  });
+
+  it('shows verbose output with --verbose', async () => {
+    const workDir = tmpDir();
+    tempDirs.push(workDir);
+
+    const migDir = path.join(workDir, 'migrations');
+    const outDir = path.join(workDir, 'schemas');
+    fs.mkdirSync(migDir);
+    fs.writeFileSync(path.join(migDir, '001.mjs'), `
+      export default function(migration) {
+        migration.createContentType('verboseTest', { name: 'Verbose' });
+      }
+    `);
+
+    const { stdout } = await cli(['from-migrations', '--migrations=' + migDir, '--output=' + outDir, '--verbose']);
+    assert.ok(stdout.includes('001.mjs') || stdout.includes('Loading'));
+  });
+
+  it('generated schemas can be used by simulate', async () => {
+    const workDir = tmpDir();
+    tempDirs.push(workDir);
+
+    const migDir = path.join(workDir, 'migrations');
+    const schemaDir = path.join(workDir, 'schemas');
+    const simDir = path.join(workDir, 'output');
+    fs.mkdirSync(migDir);
+
+    fs.writeFileSync(path.join(migDir, '001.mjs'), `
+      export default function(migration) {
+        const ct = migration.createContentType('blogPost', { name: 'Blog Post', displayField: 'title' });
+        ct.createField('title', { name: 'Title', type: 'Symbol', required: true });
+        ct.createField('body', { name: 'Body', type: 'Text' });
+      }
+    `);
+
+    // Step 1: extract
+    await cli(['from-migrations', '--migrations=' + migDir, '--output=' + schemaDir]);
+
+    // Step 2: simulate using extracted schemas
+    const { stdout } = await cli([
+      '--schemas=' + schemaDir,
+      '--output=' + simDir,
+      '--entries-per-type=2',
+      '--name=E2E Blog',
+    ]);
+
+    const plain = stripAnsi(stdout);
+    assert.ok(plain.includes('Content Types: 1'));
+    assert.ok(plain.includes('Entries:'));
+    assert.ok(fs.existsSync(path.join(simDir, 'manifest.json')));
+    assert.ok(fs.existsSync(path.join(simDir, 'content-browser.html')));
+  });
+});

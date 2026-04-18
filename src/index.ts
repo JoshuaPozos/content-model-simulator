@@ -88,6 +88,8 @@ export { writeReport } from './output/json-writer.js';
 
 // ── Contentful ───────────────────────────────────────────────────
 export { pull } from './contentful/pull.js';
+export { fromMigration, fromMigrations, writeMigrationSchemas, discoverMigrationFiles, MigrationMock } from './contentful/migration-adapter.js';
+export type { FromMigrationsOptions, FromMigrationsResult } from './contentful/migration-adapter.js';
 
 // ── WordPress ────────────────────────────────────────────────────
 export { readWXR, parseWXR, parseWXRString, stripGutenbergComments } from './wordpress/wxr-reader.js';
